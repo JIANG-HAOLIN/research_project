@@ -1,7 +1,36 @@
+**/*.DS_Store
+.DS_Store
+
+checkpoints/
+tensorboard_logs/
+results/
+jobs/
+scripts/
+**/__pycache__/ 
+__pycache__/
+util/__pycache__/
+.idea/
+*.out
+pretrained_models/
+**/*.sh
+!1spade.sh
+!skip_spade.sh
+**/*.jpeg
+**/*.png
+__MACOSX/
+*.npy
+test.py
+test_old.py
+structure_experiments.py
+personal_experiments.py
+utils_contrastive/
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
 
 # C extensions
 *.so

@@ -22,7 +22,7 @@ export PATH="/usrhomes/s1434/anaconda3/envs/myenv/bin:/usrhomes/s1434/anaconda3/
 conda activate /usrhomes/s1434/anaconda3/envs/myenv
 # Run your python code
 
-python train_supervised_ganformer_unet_wodist.py --name oasis_cityscapes --dataset_mode cityscapes --gpu_ids 0 \
+python train_supervised_oasisG_unet_wodist.py --name oasis_cityscapes --dataset_mode cityscapes --gpu_ids 0 \
 --dataroot /data/public/cityscapes --batch_size 2  \
 --model_supervision 2 --netG 1 --channels_G 64 --num_epochs 500 \
 --checkpoints_dir ./checkpoints/checkpoints_oasisG_epeUnet

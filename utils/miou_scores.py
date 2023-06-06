@@ -155,6 +155,85 @@ class miou_pytorch():
         plt.close()
 
 
+
+
+
+class miou_pytorch_vanillaG():
+    def __init__(self, opt, dataloader_val):
+        self.opt = opt
+        self.val_dataloader = dataloader_val
+        self.best_miou = 0
+        self.path_to_save = os.path.join(self.opt.checkpoints_dir, self.opt.name, "MIOU")
+        Path(self.path_to_save).mkdir(parents=True, exist_ok=True)
+
+    def compute_miou(self, netG, netEMA,model = None,current_iter = 'latest'):
+        image_saver = utils.results_saver_mid_training(self.opt,str(current_iter))
+        netG.eval()
+        if not self.opt.no_EMA:
+            netEMA.eval()
+        with torch.no_grad():
+            for i, data_i in enumerate(self.val_dataloader):
+                image, label, label_map, instance_map = models.preprocess_input(self.opt, data_i)
+                if self.opt.no_EMA:
+                    generated = netG(label=label)
+                else:
+                    generated = netEMA(label=label)
+                image_saver(label, generated, data_i["name"])
+
+            if self.opt.dataset_mode == "ade20k":
+                answer = upernet101_miou(self.opt.results_dir, self.opt.name, str(current_iter))
+            if self.opt.dataset_mode == "cityscapes":
+                answer = drn_105_d_miou(self.opt.results_dir, self.opt.name, str(current_iter))
+            if self.opt.dataset_mode == "gtavtocityscapes":
+                answer = drn_105_d_miou(self.opt.results_dir, self.opt.name, str(current_iter))
+            if self.opt.dataset_mode == "coco":
+                answer = deeplab_v2_miou(self.opt.results_dir, self.opt.name, str(current_iter))
+        netG.train()
+        if not self.opt.no_EMA:
+            netEMA.train()
+        return answer
+
+
+    def update(self, model, cur_iter):
+        print("--- Iter %s: computing MIOU ---" % (cur_iter))
+        cur_miou = self.compute_miou(model.module.netG, model.module.netEMA,model,cur_iter)
+        self.update_logs(cur_miou, cur_iter)
+        print("--- MIOU at Iter %s: " % cur_iter, "{:.2f}".format(cur_miou))
+        if cur_miou > self.best_miou:
+            self.best_miou = cur_miou
+            is_best = True
+        else:
+            is_best = False
+        return is_best
+
+    def update_logs(self, cur_miou, epoch):
+        try :
+            np_file = np.load(self.path_to_save + "/miou_log.npy")
+            first = list(np_file[0, :])
+            sercon = list(np_file[1, :])
+            first.append(epoch)
+            sercon.append(cur_miou)
+            np_file = [first, sercon]
+        except:
+            np_file = [[epoch], [cur_miou]]
+
+        np.save(self.path_to_save + "/miou_log.npy", np_file)
+
+        np_file = np.array(np_file)
+        plt.figure()
+        plt.plot(np_file[0, :], np_file[1, :])
+        plt.grid(b=True, which='major', color='#666666', linestyle='--')
+        plt.minorticks_on()
+        plt.grid(b=True, which='minor', color='#999999', linestyle='--', alpha=0.2)
+        plt.title(f'best miou:{self.best_miou}')
+
+        plt.savefig(self.path_to_save + "/plot_miou", dpi=600)
+        plt.close()
+
+
+
+
+
 def torch_cov(m, rowvar=False):
     '''Estimate a covariance matrix given data.
     Covariance indicates the level to which two variables vary together.

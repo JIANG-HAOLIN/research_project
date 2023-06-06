@@ -5,8 +5,8 @@ from models.models_EPE import seg_losses_computer
 import models.models_EPE as models_EPE
 import dataloaders.dataloaders as dataloaders
 import utils.utils_EPE as utils
-from utils.fid_scores import fid_pytorch
-from utils.miou_scores import miou_pytorch
+from utils.fid_scores import fid_pytorch_vanillaG
+from utils.miou_scores import miou_pytorch_vanillaG
 import matplotlib.backends
 
 ##############
@@ -49,10 +49,10 @@ timer = utils.timer(opt)
 visualizer_losses = utils.losses_saver(opt)
 losses_computer = seg_losses_computer(opt)
 dataloader,dataloader_supervised, dataloader_val = dataloaders.get_dataloaders(opt)
-im_saver = utils.image_saver(opt)
-im_saver_all_in_one = utils.image_saver_all_in_one(opt)
-fid_computer = fid_pytorch(opt, dataloader_val)
-miou_computer = miou_pytorch(opt,dataloader_val)
+im_saver = utils.vanillaG_image_saver(opt)
+im_saver_all_in_one = utils.vanillaG_image_saver_all_in_one(opt)
+fid_computer = fid_pytorch_vanillaG(opt, dataloader_val)
+miou_computer = miou_pytorch_vanillaG(opt,dataloader_val)
 
 #--- create models ---#
 opt.seg_path = os.path.abspath(os.path.join(__file__, "..", "pretrained_models", "best_EMA_Unet.pth"))
@@ -94,27 +94,8 @@ for epoch in range(start_epoch, opt.num_epochs):
         already_started = True
         cur_iter = epoch*len(dataloader_supervised) + i
         image, label, label_map, instance_map = models_EPE.preprocess_input(opt, data_i)
-        dist_map = distance_map(label_map.squeeze(1).to('cpu'), norm='norm').to(device)
-        dist_map_16 = distance_map(F.interpolate(label_map.float(), (16, 32), mode='nearest').squeeze(1).to('cpu'),
-                                   norm='norm').to(device)
-        dist_map_32 = distance_map(F.interpolate(label_map.float(), (32, 64), mode='nearest').squeeze(1).to('cpu'),
-                                   norm='norm').to(device)
-        dist_map_64 = distance_map(F.interpolate(label_map.float(), (64, 128), mode='nearest').squeeze(1).to('cpu'),
-                                   norm='norm').to(device)
-        dist_map_128 = distance_map(F.interpolate(label_map.float(), (128, 256), mode='nearest').squeeze(1).to('cpu'),
-                                    norm='norm').to(device)
-        dist_16_to_128 = {
-            16: dist_map_16,
-            32: dist_map_32,
-            64: dist_map_64,
-            128: dist_map_128,
-        }
-        dict = {
-            'dist_16_to_128': dist_16_to_128
-        }
 
 
-        label_class_dict = torch.cat((label_map,dist_map),dim=1)
 
 
 
@@ -130,12 +111,12 @@ for epoch in range(start_epoch, opt.num_epochs):
 
         loss_G, losses_G_list, loss_G_realism = model(image=image,
                                                       label= label,
-                                                      label_class_dict=label_class_dict,
+                                                      label_class_dict=None,
                                                       mode= "losses_G",
                                                       losses_computer= losses_computer,
                                                       converted=converted,
                                                       latent=noise,
-                                                      dict=dict)
+                                                      dict=None)
         optimizerG.step()
 
 
@@ -146,12 +127,12 @@ for epoch in range(start_epoch, opt.num_epochs):
         # loss_D, losses_D_list = model(image, label, "losses_D", losses_computer)
         loss_D, losses_D_list = model(image=image,
                                       label= label,
-                                      label_class_dict=label_class_dict,
+                                      label_class_dict=None,
                                       mode= "losses_D",
                                       losses_computer= losses_computer,
                                       converted=converted,
                                       latent=noise,
-                                      dict=dict)
+                                      dict=None)
         optimizerD.step()
         optimizerS.step()
 
@@ -164,18 +145,18 @@ for epoch in range(start_epoch, opt.num_epochs):
                                      image,
                                      label,
                                      cur_iter,
-                                     label_class_dict=label_class_dict,
+                                     label_class_dict=None,
                                      converted=converted,
                                      latent=noise,
-                                     dict = dict)
+                                     dict = None)
             im_saver_all_in_one.visualize_batch(model,
                                                 image,
                                                 label,
                                                 cur_iter,
-                                                label_class_dict=label_class_dict,
+                                                label_class_dict=None,
                                                 converted=converted,
                                                 latent=noise,
-                                                dict=dict)
+                                                dict=None)
             timer(epoch, cur_iter)
         #if cur_iter % opt.freq_save_ckpt == 0:
         #    utils.save_networks(opt, cur_iter, model)

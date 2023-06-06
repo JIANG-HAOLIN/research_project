@@ -805,7 +805,6 @@ class EPE_model_unet_ft_vanillaG(nn.Module):
         # print("input latent code:",self.latent)
         if mode == "losses_G":
             loss_G = 0
-            label_map = label_class_dict[:,:1,:,:]
             fake = self.netG(label)
 
 

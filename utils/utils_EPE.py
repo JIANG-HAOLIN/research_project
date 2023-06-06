@@ -476,6 +476,133 @@ class image_saver_all_in_one():
 
 
 
+class vanillaG_image_saver():
+    def __init__(self, opt):
+        self.cols = 4
+        self.rows = 3
+        self.grid = 5
+        self.path = os.path.join(opt.checkpoints_dir, opt.name, "images")+"/"
+        self.opt = opt
+        self.num_cl = opt.label_nc + 2
+        os.makedirs(self.path, exist_ok=True)
+
+    def visualize_batch(self,
+                        model,
+                        image,
+                        label,
+                        cur_iter,
+                        label_class_dict,
+                        converted=None,
+                        latent=None,
+                        dict = None
+                        ):
+        # print('start visualize_batch')
+        self.save_images(label, "label", cur_iter, is_label=True)
+        # print('save_image label completed')
+        self.save_images(image, "real", cur_iter)
+        # print('save_image real completed')
+
+        edges = model.module.compute_edges(image)
+        with torch.no_grad():
+            model.eval()
+            # print('start evaluation')
+            converted = converted
+            latent = latent
+            # print('label size',label.size(),'label_class_dict',label_class_dict.size(),)
+            fake = model.module.netG(label=label)
+            # print("fake size",fake.size())
+            self.save_images(fake, "fake", cur_iter)
+            model.train()
+            if not self.opt.no_EMA:
+                model.eval()
+                fake = model.module.netEMA(label=label)
+                self.save_images(fake, "fake_ema", cur_iter)
+                model.train()
+
+    def save_images(self, batch, name, cur_iter, is_label=False):
+        fig = plt.figure()
+        for i in range(min(self.rows * self.cols, len(batch))):
+            if is_label:
+                im = tens_to_lab(batch[i], self.num_cl)
+            else:
+                im = tens_to_im(batch[i])
+            plt.axis("off")
+            fig.add_subplot(self.rows, self.cols, i+1)
+            plt.axis("off")
+            plt.imshow(im)
+        fig.tight_layout()
+        plt.savefig(self.path+str(cur_iter)+"_"+name)
+        plt.close()
+
+
+
+class vanillaG_image_saver_all_in_one():
+    def __init__(self, opt):
+        self.cols = 4
+        self.rows = 3
+        self.grid = 5
+        self.path = os.path.join(opt.checkpoints_dir, opt.name, "images")+"/"
+        self.opt = opt
+        self.num_cl = opt.label_nc + 2
+        os.makedirs(self.path, exist_ok=True)
+
+    def visualize_batch(self,
+                        model,
+                        image,
+                        label,
+                        cur_iter,
+                        label_class_dict,
+                        converted=None,
+                        latent=None,
+                        dict = None
+                        ):
+        edges = model.module.compute_edges(image)
+        with torch.no_grad():
+            model.eval()
+            converted = converted
+            latent = latent
+            fake = model.module.netG(label=label)
+            # self.save_fake_label_ema_in_one_pic(batch_label=label, batch_real=image, batch_fake=fake,
+            #                                     batch_fake_ema=None, cur_iter=cur_iter)
+
+            model.train()
+            if not self.opt.no_EMA:
+                model.eval()
+                fake_ema = model.module.netEMA(label=label)
+                self.save_fake_label_ema_in_one_pic(batch_label=label,batch_real=image,batch_fake=fake,batch_fake_ema=fake_ema,cur_iter=cur_iter)
+                model.train()
+
+    def save_fake_label_ema_in_one_pic(self, batch_label,batch_real,batch_fake,batch_fake_ema=None,cur_iter=None):
+        fig = plt.figure(figsize=(7.3/4*self.opt.batch_size,3.7))
+        num_row = 4 if batch_fake_ema != None else 3
+        num_col = self.opt.batch_size
+        if batch_fake_ema == None:
+            batch = [batch_label, batch_real, batch_fake]
+        else:
+            batch = [batch_label,batch_real,batch_fake, batch_fake_ema]
+        for i in range(num_row):
+            for j in range(num_col):
+                if i == 0:
+                    im = tens_to_lab( batch[i][j], self.num_cl)
+                    plt.axis("off")
+                    fig.add_subplot(num_row, num_col, i*num_col + j +1)
+                    plt.axis("off")
+                else:
+                    im = tens_to_im( batch[i][j])
+                    plt.axis("off")
+                    fig.add_subplot(num_row, num_col, i*num_col + j +1)
+                    plt.axis("off")
+                plt.imshow(im)
+        fig.tight_layout()
+        plt.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace=0.005, hspace=0.005)
+        plt.savefig(self.path+str(cur_iter),dpi=300)
+        plt.close()
+
+
+
+
+
+
 
 
 def tens_to_im(tens):

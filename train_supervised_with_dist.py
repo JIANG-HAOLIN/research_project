@@ -1,11 +1,11 @@
 import torch
 import torch.nn.functional as F
 import models.losses as losses
-import models.models_EPE as models_EPE
-import dataloaders.dataloaders as dataloaders
-import utils.utils_EPE as utils
-from utils.fid_scores import fid_pytorch
-from utils.miou_scores import miou_pytorch
+import models.models as models
+import dataloaders.dataloaders_with_distance as dataloaders
+import utils.utils as utils
+from utils.fid_scores_with_dist import fid_pytorch
+from utils.miou_scores_with_dist import miou_pytorch
 import matplotlib.backends
 
 ##############
@@ -33,25 +33,26 @@ opt = config.read_arguments(train=True)
 
 
 
-# opt.Matrix_Computation = True
-# opt.apply_MOD_CLADE = True
-# opt.only_CLADE = True
-# opt.add_dist = True
-#
-opt.dataroot = '/Users/hlj/Documents/NoSync.nosync/FA/cityscapes'
-opt.gpu_ids = '-1'
-opt.netG = 41322
+
+opt.netG = 413113
 opt.batch_size = 2
+# #
+opt.gpu_ids = '-1'
 opt.checkpoints_dir='./checkpoints/test_cpu'
-opt.netD = 'EPE_origin'
-opt.name = 'oasis_cityscapes'
+opt.dataroot = '/Users/hlj/Documents/NoSync.nosync/FA/cityscapes'
+
+
+# opt.gpu_ids = '0'
+# opt.dataroot='/data/public/cityscapes'
+# opt.checkpoints_dir='./checkpoints/test_interactive'
+
 
 device = "cpu" if opt.gpu_ids == '-1' else 'cuda'
 print("nb of gpus: ", torch.cuda.device_count())
 #--- create utils ---#
 timer = utils.timer(opt)
 visualizer_losses = utils.losses_saver(opt)
-losses_computer = losses.segmentation_losses_computer(opt)
+losses_computer = losses.losses_computer(opt)
 dataloader,dataloader_supervised, dataloader_val = dataloaders.get_dataloaders(opt)
 im_saver = utils.image_saver(opt)
 im_saver_all_in_one = utils.image_saver_all_in_one(opt)
@@ -67,11 +68,11 @@ miou_computer = miou_pytorch(opt,dataloader_val)
 
 
 
-model = models_EPE.EPE_model(opt)
+model = models.OASIS_model(opt)
 
 # model.half()
 
-model = models_EPE.put_on_multi_gpus(model, opt)
+model = models.put_on_multi_gpus(model, opt)
 
 # model = Generator(size=256, hidden_size=512, style_dim=512, n_mlp=8,
 #                       activation=None, channel_multiplier=2,
@@ -144,7 +145,7 @@ for epoch in range(start_epoch, opt.num_epochs):
             continue
         already_started = True
         cur_iter = epoch*len(dataloader_supervised) + i
-        image, label, label_map, instance_map = models_EPE.preprocess_input(opt, data_i)
+        image, label, label_map, instance_map, dist_map = models.preprocess_input_with_dist(opt, data_i)
 
         # label_class_dict = torch.sum((label*label_class_extractor),dim=1,keepdim=True)##don't use this
 
@@ -153,22 +154,37 @@ for epoch in range(start_epoch, opt.num_epochs):
 
         #label_class_dict = label_map.squeeze(1)##just use original labelmap directly
 
-        dist_map = distance_map(label_map.squeeze(1).to('cpu'), norm='norm').to(device)
+        # dist_map_256 = distance_map(label_map.squeeze(1).to('cpu'), norm='norm').to(device)
         # dist_map = make_dist_train_val_cityscapes_datasets_multichannel(label.to('cpu'), norm='norm').to(device)
+        # label_np = dist_map[:,-1:,:,:]
+        # distmap = dist_map[:,:-1,:,:]
+        # dif_256 = dist_map_256-dist_map
+        # dif_256 = torch.sum(torch.abs(dif_256))
+
         dist_map_16 = distance_map(F.interpolate(label_map.float(), (16, 32), mode='nearest').squeeze(1).to('cpu'),
                                    norm='norm').to(device)
+        # dif_16 = dist_map_16-dist_map[4]
+        # dif_16 = torch.sum(torch.abs(dif_16))
         dist_map_32 = distance_map(F.interpolate(label_map.float(), (32, 64), mode='nearest').squeeze(1).to('cpu'),
                                    norm='norm').to(device)
+        # dif_32 = dist_map_32-dist_map[3]
+        # dif_32 = torch.sum(torch.abs(dif_32))
         dist_map_64 = distance_map(F.interpolate(label_map.float(), (64, 128), mode='nearest').squeeze(1).to('cpu'),
                                    norm='norm').to(device)
+        # dif_64 = dist_map_64-dist_map[2]
+        # dif_64 = torch.sum(torch.abs(dif_64))
         dist_map_128 = distance_map(F.interpolate(label_map.float(), (128, 256), mode='nearest').squeeze(1).to('cpu'),
                                     norm='norm').to(device)
+        # dif_128 = dist_map_128-dist_map[1]
+        # dif_128 = torch.sum(torch.abs(dif_128))
         dist_16_to_128 = {
             16: dist_map_16,
             32: dist_map_32,
             64: dist_map_64,
             128: dist_map_128,
         }
+
+
         dict = {
             'dist_16_to_128': dist_16_to_128
         }
@@ -198,14 +214,19 @@ for epoch in range(start_epoch, opt.num_epochs):
         model.module.netG.zero_grad()
         # model.netG.zero_grad()
         # loss_G, losses_G_list = model(image, label, "losses_G", losses_computer)##????????
-        loss_G, losses_G_list, loss_G_realism = model(image=image,
-                                                      label= label,
-                                                      label_class_dict=label_class_dict,
-                                                      mode= "losses_G",
-                                                      losses_computer= losses_computer,
-                                                      converted=converted,
-                                                      latent=noise,
-                                                      dict=dict)
+        loss_G, losses_G_list = model(image=image,
+                                      label= label,
+                                      label_class_dict=label_class_dict,
+                                      mode= "losses_G",
+                                      losses_computer= losses_computer,
+                                      converted=converted,
+                                      latent=noise,
+                                      dict=dict)
+
+
+
+        loss_G, losses_G_list = loss_G.mean(), [loss.mean() if loss is not None else None for loss in losses_G_list]
+        loss_G.backward()
         optimizerG.step()
 
 
@@ -222,6 +243,8 @@ for epoch in range(start_epoch, opt.num_epochs):
                                       converted=converted,
                                       latent=noise,
                                       dict=dict)
+        loss_D, losses_D_list = loss_D.mean(), [loss.mean() if loss is not None else None for loss in losses_D_list]
+        loss_D.backward()
         optimizerD.step()
 
         #--- stats update ---#
@@ -255,7 +278,7 @@ for epoch in range(start_epoch, opt.num_epochs):
             if is_best:
                 utils.save_networks(opt, cur_iter, model, best=True)
             _ = miou_computer.update(model,cur_iter)
-        visualizer_losses(cur_iter, losses_G_list+losses_D_list+loss_G_realism)
+        visualizer_losses(cur_iter, losses_G_list+losses_D_list)
 
 #--- after training ---#
 utils.update_EMA(model, cur_iter, dataloader_supervised, opt, force_run_stats=True)

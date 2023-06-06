@@ -15,7 +15,7 @@ util/__pycache__/
 pretrained_models/
 **/*.sh
 !1spade.sh
-!skip_spade.sh
+!ganformer_oasisD.sh
 **/*.jpeg
 **/*.png
 __MACOSX/

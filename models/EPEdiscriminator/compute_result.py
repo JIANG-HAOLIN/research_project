@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import PIL.Image as Image
+import torchvision.transforms
 import torchvision.transforms as tf
 import os
 import imageio
@@ -8,6 +9,11 @@ import mseg.utils.names_utils as names_utils
 import mseg.utils.resize_util as resize_util
 from mseg.utils.mask_utils_detectron2 import Visualizer
 from pathlib import Path
+
+
+import config
+from train_Unetseg_35 import OASIS_model,put_on_multi_gpus
+from models.discriminator import OASIS_Discriminator
 
 
 labels = {
@@ -202,7 +208,7 @@ def compute_iou(pred_mask, true_mask, num_classes):
 
 def map_194_to_24(logits):
     mapping_matrix = compute_mapping_matrix_24()
-    logits = torch.matmul(mapping_matrix, logits.permute(0, 2, 3, 1).unsqueeze(-1)).squeeze(-1)
+    logits = torch.matmul(mapping_matrix.to(logits.device), logits.permute(0, 2, 3, 1).unsqueeze(-1)).squeeze(-1)
     return logits.permute(0,3,1,2)
 
 
@@ -337,3 +343,103 @@ def compute_result_19(image_path=None,logits=None,label=None,original_image=None
         # imageio.imwrite(output_gray_fpath + f'{i}' + '.jpg', pred_label_img)
         imageio.imwrite(output_gray_fpath + f'{i}' + '.jpg', pred_label_img2)
         imageio.imwrite(output_gray_fpath + f'{i}' + '.jpg', pred_label_img3)
+
+
+
+
+
+def compute_result_35(image_path=None,logits=None,labelmap=None,original_image=None,min_resolution=1080):
+
+
+    id_to_class_name_map = {info[0]: classname for classname,info in labels.items()}
+    id_to_class_name_map[34]='unlabeled'
+
+    in_fname_stem = Path(image_path).stem
+    output_gray_fpath = os.path.join('/Users/hlj/Documents/NoSync.nosync/FA/no_backups/s1434/oasisbackup/pretrained_models/msegsemantic/content/result',
+                                     in_fname_stem + '_gray_35')
+    output_demo_fpath = os.path.join('/Users/hlj/Documents/NoSync.nosync/FA/no_backups/s1434/oasisbackup/pretrained_models/msegsemantic/content/result',
+                                     in_fname_stem + '_overlaid_classes_35')
+
+
+
+    predictions = torch.argmax(logits, dim=1)
+    batch_size = logits.shape[0]
+    # dump results to disk
+    predictions = predictions.data.cpu().numpy()
+    gray_batch = np.uint8(predictions)
+
+
+    labelmap = labelmap.cpu().detach().numpy()
+    gray_batch2 = np.uint8(predictions)
+    gray_batch3 = np.uint8(labelmap)
+    miou = compute_iou(pred_mask=predictions, true_mask=labelmap, num_classes=35)
+    print(miou)
+
+    for i in range(batch_size):
+        # rgb_img = np.transpose(input[i,:,:,:].cpu().detach().numpy(),(1,2,0))
+        rgb_img = original_image
+
+        # pred_label_img = gray_batch[i, :, :]
+        pred_label_img2 = gray_batch2[i, :, :]
+        pred_label_img3 = gray_batch3[i, :, :]
+        if np.amin(rgb_img.shape[:2]) < min_resolution:
+            rgb_img = resize_util.resize_img_by_short_side(rgb_img, min_resolution, "rgb")
+            # pred_label_img = resize_util.resize_img_by_short_side(pred_label_img, min_resolution, "label")
+            pred_label_img2 = resize_util.resize_img_by_short_side(pred_label_img2, min_resolution, "label")
+            pred_label_img3 = resize_util.resize_img_by_short_side(pred_label_img3, min_resolution, "label")
+
+        metadata = None
+        frame_visualizer = Visualizer(rgb_img, metadata)
+        frame_visualizer2 = Visualizer(rgb_img, metadata)
+        frame_visualizer3 = Visualizer(rgb_img, metadata)
+        # overlaid_img = frame_visualizer.overlay_instances(
+        #     label_map=pred_label_img, id_to_class_name_map=id_to_class_name_map
+        # )
+        overlaid_img2 = frame_visualizer2.overlay_instances(
+            label_map=pred_label_img2, id_to_class_name_map=id_to_class_name_map
+        )
+        overlaid_img3 = frame_visualizer3.overlay_instances(
+            label_map=pred_label_img3, id_to_class_name_map=id_to_class_name_map
+        )
+        # imageio.imwrite(output_demo_fpath + f'{i}' + '.jpg', overlaid_img)
+        imageio.imwrite(output_demo_fpath + f'{i}' + 'predicitions24' + '.jpg', overlaid_img2)
+        imageio.imwrite(output_demo_fpath + f'{i}' + 'labelmap24' + '.jpg', overlaid_img3)
+
+        # imageio.imwrite(output_gray_fpath + f'{i}' + '.jpg', pred_label_img)
+        imageio.imwrite(output_gray_fpath + f'{i}' + '.jpg', pred_label_img2)
+        imageio.imwrite(output_gray_fpath + f'{i}' + '.jpg', pred_label_img3)
+
+
+if __name__ =="__main__":
+    opt = config.read_arguments(train=True)
+    opt.gpu_ids = '-1'
+    opt.load_size = 512
+    opt.crop_size = 512
+    opt.label_nc = 34
+    opt.contain_dontcare_label = True
+    opt.semantic_nc = 35  # label_nc + unknown
+    opt.cache_filelist_read = False
+    opt.cache_filelist_write = False
+    opt.aspect_ratio = 2.0
+    opt.checkpoints_dir = '/Users/hlj/Documents/NoSync.nosync/FA/no_backups/s1434/oasisbackup/checkpoints/Unet_dis_16_35_miou_05_2'
+
+    device = "cpu" if opt.gpu_ids == '-1' else 'cuda'
+    print("nb of gpus: ", torch.cuda.device_count())
+    model = OASIS_model(opt)
+    model = put_on_multi_gpus(model, opt)
+    which_iter = opt.which_iter
+    path = os.path.join(opt.checkpoints_dir, opt.name, "models", str(which_iter) + "_")
+    model.module.netD.load_state_dict(torch.load(path + "D.pth",map_location='cpu'))
+    if not opt.no_EMA:
+        model.module.netEMA.load_state_dict(torch.load(path + "EMA.pth",map_location='cpu'))
+    image_path = '/Users/hlj/Documents/NoSync.nosync/FA/no_backups/s1434/oasisbackup/pretrained_models/msegsemantic/content/city2-480-360SS.png'
+    label_path = '/Users/hlj/Documents/NoSync.nosync/FA/no_backups/s1434/oasisbackup/pretrained_models/msegsemantic/content/city2label.png'
+    origin_image = np.array(Image.open(image_path))
+    image = torchvision.transforms.functional.to_tensor(Image.open(image_path).convert('RGB'))
+    image = torchvision.transforms.functional.normalize(image, (0.5, 0.5, 0.5), (0.5, 0.5, 0.5)).unsqueeze(0)
+    label = (torchvision.transforms.functional.to_tensor(Image.open(label_path)).unsqueeze(0)*255)[:,0,:,:]
+
+    with torch.no_grad():
+        logits = model.module.netEMA(image)
+
+    compute_result_35(image_path,logits,label,origin_image,1080)

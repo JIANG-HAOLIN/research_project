@@ -1203,14 +1203,14 @@ class DecoderBlock_1spade(torch.nn.Module):
                                        out_resolution=self.out_res, in_resolution=self.in_res,up = 1,
                                        resample_kernel=resample_kernel,
                                        y_dim=w_dim, style=style, **layer_kwargs)
-            self.project0 = torch.nn.Sequential(torch.nn.Conv2d(in_channels=67,out_channels=128,kernel_size=3,padding=1),
+            self.project0 = torch.nn.Sequential(torch.nn.Conv2d(in_channels=35,out_channels=128,kernel_size=3,padding=1),
                                                 torch.nn.ReLU())
 
             self.conv1 = DecodingLayer(in_channels, out_channels,
                                        out_resolution=self.out_res, in_resolution=self.out_res,
                                        gain=1 if self.stem else get_gain(architecture),
                                        y_dim=w_dim, style=style, **layer_kwargs)
-            self.project1 = torch.nn.Sequential(torch.nn.Conv2d(in_channels=67,out_channels=128,kernel_size=3,padding=1),
+            self.project1 = torch.nn.Sequential(torch.nn.Conv2d(in_channels=35,out_channels=128,kernel_size=3,padding=1),
                                                 torch.nn.ReLU())
             self.num_conv += 2
 
@@ -1225,7 +1225,7 @@ class DecoderBlock_1spade(torch.nn.Module):
                                        out_resolution=self.out_res,in_resolution=self.in_res,up = 2,
                                        resample_kernel=resample_kernel,
                                         y_dim=w_dim, style=style, **layer_kwargs)
-            self.project0 = torch.nn.Sequential(torch.nn.Conv2d(in_channels=67,out_channels=128,kernel_size=3,padding=1),
+            self.project0 = torch.nn.Sequential(torch.nn.Conv2d(in_channels=35,out_channels=128,kernel_size=3,padding=1),
                                                 torch.nn.ReLU())
 
 
@@ -1233,7 +1233,7 @@ class DecoderBlock_1spade(torch.nn.Module):
                                        out_resolution=self.out_res,in_resolution=self.out_res,
                                         gain=1 if self.stem else get_gain(architecture),
                                         y_dim=w_dim, style=style, **layer_kwargs)
-            self.project1 = torch.nn.Sequential(torch.nn.Conv2d(in_channels=67,out_channels=128,kernel_size=3,padding=1),
+            self.project1 = torch.nn.Sequential(torch.nn.Conv2d(in_channels=35,out_channels=128,kernel_size=3,padding=1),
                                                 torch.nn.ReLU())
             self.num_conv += 2
 
@@ -1248,14 +1248,14 @@ class DecoderBlock_1spade(torch.nn.Module):
                                        out_resolution=self.out_res, in_resolution=self.in_res,up = 2,
                                        resample_kernel=resample_kernel,
                                        y_dim=w_dim, style=style, **layer_kwargs)
-            self.project0 = torch.nn.Sequential(torch.nn.Conv2d(in_channels=67,out_channels=128,kernel_size=3,padding=1),
+            self.project0 = torch.nn.Sequential(torch.nn.Conv2d(in_channels=35,out_channels=128,kernel_size=3,padding=1),
                                                 torch.nn.ReLU())
 
             self.conv1 = DecodingLayer(in_channels, out_channels,
                                        out_resolution=self.out_res, in_resolution=self.out_res,
                                        gain=1 if self.stem else get_gain(architecture),
                                        y_dim=w_dim, style=style, **layer_kwargs)
-            self.project1 = torch.nn.Sequential(torch.nn.Conv2d(in_channels=67,out_channels=128,kernel_size=3,padding=1),
+            self.project1 = torch.nn.Sequential(torch.nn.Conv2d(in_channels=35,out_channels=128,kernel_size=3,padding=1),
                                                 torch.nn.ReLU())
             self.num_conv += 2
 
@@ -1484,7 +1484,7 @@ class DecoderNetwork_1spade(torch.nn.Module):
         return output_of_decoder,img
 
 
-class BipartiteDecoder_shallow_skipSPD_3Dnoise(torch.nn.Module):
+class BipartiteDecoder_shallow2_skipSPD_3Dnoise(torch.nn.Module):
     def __init__(self,
                  z_dim,  # Input latent (Z) dimensionality
                  c_dim,  # Conditioning label (C) dimensionality
@@ -1532,8 +1532,6 @@ class BipartiteDecoder_shallow_skipSPD_3Dnoise(torch.nn.Module):
                               truncation_cutoff=truncation_cutoff)
 
         torch_misc.assert_shape(ws, [None, self.k, self.num_ws, self.w_dim])
-        noise = torch.randn(size = [label.shape[0],32,256,512])
-        label = torch.cat([label,noise.to(label.device)],dim=1)
         output_of_decoder,img = self.decoder(from_encoder,emb,label,ws, pos=self.pos, mask=mask, **synthesis_kwargs)
 
 

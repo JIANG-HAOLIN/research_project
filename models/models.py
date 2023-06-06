@@ -97,10 +97,13 @@ class OASIS_model(nn.Module):
             self.netG = generators.ImplicitGenerator_multiscaleU_transconv_nomod_bipartiteDEcoder_1spade(opt=opt,dict=dict)
         if opt.netG == 41311:
             self.netG = generators.ImplicitGenerator_multiscaleU_transconv_nomod_bipartiteDEcoder_1spade_catFeature(opt=opt,dict=dict)
+        if opt.netG == 413113:
+            self.netG = generators.ImplicitGenerator_bipDEC_1spd_catFeat_noskip(opt=opt,dict=dict)
         if opt.netG == 41312:
             self.netG = generators.ImplicitGenerator_bipDEC_1spade_catlabel(opt=opt,dict=dict)
         if opt.netG == 41313:
             self.netG = generators.ImplicitGenerator_bipDEC_1spade_catFeature_3D(opt=opt,dict=dict)
+
         if opt.netG == 4132:
             self.netG = generators.ImplicitGenerator_multiscaleU_transconv_nomod_bipartiteDEcoder_cat(opt=opt,dict=dict)
         if opt.netG == 41321:
@@ -109,6 +112,8 @@ class OASIS_model(nn.Module):
             self.netG = generators.ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_noisylb(opt=opt,dict=dict)
         if opt.netG == 413222:
             self.netG = generators.ImplicitGenerator_bipDEC_shallow_skipSPD_3Dnoise_noisylb(opt=opt, dict=dict)
+        if opt.netG == 413223:
+            self.netG = generators.ImplicitGenerator_bipDEC_shallow2_skipSPD_3Dnoise_noisylb(opt=opt, dict=dict)
         if opt.netG == 4133:
             self.netG = generators.ImplicitGenerator_multiscaleU_transconv_nomod_bipartiteDEcoder_cat_no_spade_iter(opt=opt,dict=dict)
         if opt.netG == 4134:
@@ -146,6 +151,7 @@ class OASIS_model(nn.Module):
         # print("input latent code:",self.latent)
         if mode == "losses_G":
             loss_G = 0
+
             fake,_ = self.netG(
                             label=label,
                             label_class_dict=label_class_dict,
@@ -985,7 +991,7 @@ def put_on_multi_gpus(model, opt):
         gpus = list(map(int, opt.gpu_ids.split(",")))
         model = DataParallelWithCallback(model, device_ids=gpus).cuda()
     else:
-        model.module = model
+        model = torch.nn.DataParallel(model)
     assert len(opt.gpu_ids.split(",")) == 0 or opt.batch_size % len(opt.gpu_ids.split(",")) == 0
     return model
 
@@ -1006,6 +1012,26 @@ def preprocess_input(opt, data):
     input_semantics = input_label.scatter_(1, label_map, 1.0)
     ####!!原本的label是一张图像!!通过scatter_函数转换成one-shot coding!!!
     return data['image'], input_semantics, label_map, instance_map
+
+def preprocess_input_with_dist(opt,data):
+    data['label'] = data['label'].long()
+    if opt.gpu_ids != "-1":
+        data['label'] = data['label'].cuda()
+        data['image'] = data['image'].cuda()
+        data['distance'] = data['distance'].cuda()
+    label_map = data['label']
+    instance_map = data['instance']
+    dist_map = data['distance']
+    bs, _, h, w = label_map.size()
+    nc = opt.semantic_nc
+    if opt.gpu_ids != "-1":
+        input_label = torch.cuda.FloatTensor(bs, nc, h, w).zero_()
+    else:
+        input_label = torch.FloatTensor(bs, nc, h, w).zero_()
+    input_semantics = input_label.scatter_(1, label_map, 1.0)
+    ####!!原本的label是一张图像!!通过scatter_函数转换成one-shot coding!!!
+    return data['image'], input_semantics, label_map, instance_map, dist_map
+
 
 
 def generate_labelmix(label, fake_image, real_image,device_models):

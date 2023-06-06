@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 import models.losses as losses
+from models.models_EPE import seg_losses_computer
 import models.models_EPE as models_EPE
 import dataloaders.dataloaders as dataloaders
 import utils.utils_EPE as utils
@@ -13,7 +14,7 @@ import matplotlib.backends
 
 import config
 
-
+import os
 # from models.noise import mixing_noise
 import torch
 import models.tensor_transforms as tt
@@ -31,27 +32,22 @@ from models.blocks import mixing_noise
 #--- read options ---#
 opt = config.read_arguments(train=True)
 
-
-
-# opt.Matrix_Computation = True
-# opt.apply_MOD_CLADE = True
-# opt.only_CLADE = True
-# opt.add_dist = True
 #
 opt.dataroot = '/Users/hlj/Documents/NoSync.nosync/FA/cityscapes'
 opt.gpu_ids = '-1'
 opt.netG = 41322
 opt.batch_size = 2
 opt.checkpoints_dir='./checkpoints/test_cpu'
-opt.netD = 'EPE_origin'
-opt.name = 'oasis_cityscapes'
+# opt.netD = 'EPE_origin'
+# opt.name = 'oasis_cityscapes'
+
 
 device = "cpu" if opt.gpu_ids == '-1' else 'cuda'
 print("nb of gpus: ", torch.cuda.device_count())
 #--- create utils ---#
 timer = utils.timer(opt)
 visualizer_losses = utils.losses_saver(opt)
-losses_computer = losses.segmentation_losses_computer(opt)
+losses_computer = seg_losses_computer(opt)
 dataloader,dataloader_supervised, dataloader_val = dataloaders.get_dataloaders(opt)
 im_saver = utils.image_saver(opt)
 im_saver_all_in_one = utils.image_saver_all_in_one(opt)
@@ -59,69 +55,22 @@ fid_computer = fid_pytorch(opt, dataloader_val)
 miou_computer = miou_pytorch(opt,dataloader_val)
 
 #--- create models ---#
-# model = models.OASIS_model(opt)
-# model = models.put_on_multi_gpus(model, opt)
-
-
-
-
-
-
-model = models_EPE.EPE_model(opt)
-
-# model.half()
-
+opt.seg_path = os.path.abspath(os.path.join(__file__, "..", "pretrained_models", "best_EMA_Unet.pth"))
+model = models_EPE.EPE_model_unet_ft(opt)
 model = models_EPE.put_on_multi_gpus(model, opt)
 
-# model = Generator(size=256, hidden_size=512, style_dim=512, n_mlp=8,
-#                       activation=None, channel_multiplier=2,
-#                       ).to(device)
-
-
-
-# loss_G, losses_G_list = model(image, label,"losses_G", losses_computer,converted=converted,latent=noise)
 
 
 #--- create optimizers ---#
-optimizerG = torch.optim.Adam(model.module.netG.parameters(), lr=opt.lr_g, betas=(opt.beta1, opt.beta2))##????????
-# optimizerG = torch.optim.Adam(model.netG.parameters(), lr=opt.lr_g, betas=(opt.beta1, opt.beta2))
-optimizerD = torch.optim.Adam(model.module.netD.parameters(), lr=opt.lr_d, betas=(opt.beta1, opt.beta2))##????????
-
-
-
-# checkpoint = torch.load('./checkpoints_MOD+CLADE/oasis_cityscapes/')
-# model.load_state_dict(checkpoint['model_state_dict'])
-# optimizerG.load_state_dict(checkpoint['optimizer_state_dict'])
-# epoch = checkpoint['epoch']
-# loss = checkpoint['loss']
-# model.eval()
-# # - or -
-# model.train()
+optimizerG = torch.optim.Adam(model.module.netG.parameters(), lr=opt.lr_g, betas=(opt.beta1, opt.beta2))
+optimizerD = torch.optim.Adam(model.module.netD.parameters(), lr=opt.lr_d, betas=(opt.beta1, opt.beta2))
+optimizerS = torch.optim.Adam(model.module.seg.parameters(), lr=0.0001   , betas=(opt.beta1, opt.beta2))
 
 
 def loopy_iter(dataset):
     while True :
         for item in dataset :
             yield item
-
-
-
-# height=256
-# width =512
-# in_channel = 1024
-# out_channel = 512
-# batch = 1
-# scale = 1
-
-# input=torch.randn(batch,in_channel,height,width).cuda(0)
-# weight= torch.randn(batch,out_channel,in_channel,height,width).cuda(0)
-# output= torch.einsum('bihw,boihw->bohw',input,weight).cuda(0)
-# print(input.size(),weight.size(),output.size())
-
-
-
-
-
 
 
 
@@ -145,16 +94,7 @@ for epoch in range(start_epoch, opt.num_epochs):
         already_started = True
         cur_iter = epoch*len(dataloader_supervised) + i
         image, label, label_map, instance_map = models_EPE.preprocess_input(opt, data_i)
-
-        # label_class_dict = torch.sum((label*label_class_extractor),dim=1,keepdim=True)##don't use this
-
-        # label_class_dict = torch.argmax(label, 1)##output original labelmap  # [n, h, w]
-        # equal = torch.sum(label_map - label_class_dict, dim=(0, 1, 2, 3))
-
-        #label_class_dict = label_map.squeeze(1)##just use original labelmap directly
-
         dist_map = distance_map(label_map.squeeze(1).to('cpu'), norm='norm').to(device)
-        # dist_map = make_dist_train_val_cityscapes_datasets_multichannel(label.to('cpu'), norm='norm').to(device)
         dist_map_16 = distance_map(F.interpolate(label_map.float(), (16, 32), mode='nearest').squeeze(1).to('cpu'),
                                    norm='norm').to(device)
         dist_map_32 = distance_map(F.interpolate(label_map.float(), (32, 64), mode='nearest').squeeze(1).to('cpu'),
@@ -186,18 +126,8 @@ for epoch in range(start_epoch, opt.num_epochs):
         input_img = image
         real_stack = torch.cat([input_img, coords], 1)
         real_img, converted = real_stack[:, :3], real_stack[:, 3:]
-
-
-        # image.half()
-        # label.half()
-        # label_class_dict.half()
-        # converted.half()
-        # noise[0].half()
-
-
         model.module.netG.zero_grad()
-        # model.netG.zero_grad()
-        # loss_G, losses_G_list = model(image, label, "losses_G", losses_computer)##????????
+
         loss_G, losses_G_list, loss_G_realism = model(image=image,
                                                       label= label,
                                                       label_class_dict=label_class_dict,
@@ -223,6 +153,7 @@ for epoch in range(start_epoch, opt.num_epochs):
                                       latent=noise,
                                       dict=dict)
         optimizerD.step()
+        optimizerS.step()
 
         #--- stats update ---#
         if not opt.no_EMA:

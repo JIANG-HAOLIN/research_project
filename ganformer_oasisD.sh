@@ -1,7 +1,7 @@
 #!/bin/bash -l
 
 #Slurm parameters
-#SBATCH --job-name=noi_lb
+#SBATCH --job-name=ganfo_oaD
 #SBATCH --output=4oC_conv_encoder_U_tm%j.%N.out
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
@@ -25,4 +25,4 @@ conda activate /usrhomes/s1434/anaconda3/envs/myenv
 python train_supervised.py --name oasis_cityscapes --dataset_mode cityscapes --gpu_ids 0 \
 --dataroot /data/public/cityscapes --batch_size 4  \
 --model_supervision 2 --netG 41322 --channels_G 64 --num_epochs 500 \
---checkpoints_dir ./checkpoints/checkpoints_b4_bipaDEC_catLabel_skipSPd_3Dnoise_noisylb_2
+--checkpoints_dir ./checkpoints/checkpoints_ganformer_oasisD

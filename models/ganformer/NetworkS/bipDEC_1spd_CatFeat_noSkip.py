@@ -626,9 +626,7 @@ class TransformerLayer(torch.nn.Module):
         self.kmeans_iters = kmeans_iters
 
         # Query, Key and Value mappings
-        self.to_queries = FullyConnectedLayer(self.from_dim + 128 if self.kmeans == True else self.from_dim,
-                                                      dim)
-        # self.to_queries = FullyConnectedLayer(from_dim,dim)
+        self.to_queries = FullyConnectedLayer(self.from_dim*2 if self.kmeans else self.from_dim,dim)
         self.to_keys    = FullyConnectedLayer(to_dim, dim)
         self.to_values  = FullyConnectedLayer(to_dim, dim)
 
@@ -677,7 +675,6 @@ class TransformerLayer(torch.nn.Module):
             t_pos = t_pos.tile([batch_size, 1])
 
         return t, t_pos, shape
-
 
     # Normalizes the 'tensor' elements, and then integrate the new information from
     # 'control' with 'tensor', where 'control' controls the bias/gain of 'tensor'.
@@ -783,9 +780,8 @@ class TransformerLayer(torch.nn.Module):
     # - att_vars: K-means variables carried over from layer to layer (only when --kmeans)
     # - att_mask: Attention mask to block from/to elements [batch_size, from_len, to_len]
     def forward(self, from_tensor, to_tensor, from_pos, to_pos, 
-            att_vars = None, att_mask = None, hw_shape = None, label=None,x_label=None):
+            att_vars = None, att_mask = None, hw_shape = None,x_cat=None):
         # Validate input shapes and map them to 2d
-
         from_tensor, from_pos, from_shape = self.process_input(from_tensor, from_pos, "from")
         to_tensor,   to_pos,   to_shape   = self.process_input(to_tensor, to_pos, "to")
         ### why would they map them to 2d first?? will it be faster ??
@@ -794,9 +790,9 @@ class TransformerLayer(torch.nn.Module):
         to_from = att_vars.get("centroid_assignments")
 
         # Compute queries, keys and values
-        if label != None:
-            x_label = to_2d(x_label, "last")
-            queries = self.to_queries(x_label) ## Q = q(x,label)
+        if x_cat != None:
+            x_cat = to_2d(x_cat, "last")
+            queries = self.to_queries(x_cat) ## Q = q(x,label)
         else:
             queries = self.to_queries(from_tensor) ## Q = q(x,label)
         keys    = self.to_keys(to_tensor) ## K = k(y)
@@ -810,7 +806,6 @@ class TransformerLayer(torch.nn.Module):
             keys = keys + self.to_pos_map(to_pos)
 
         if self.kmeans:
-            ### just upsample the to_from from previous scale and multiplies it with from to get K
             from_elements, to_centroids = self.compute_centroids(_queries, queries, to_from, hw_shape)
 
         # Reshape queries, keys and values, and then compute att_scores
@@ -821,12 +816,6 @@ class TransformerLayer(torch.nn.Module):
         att_scores = queries.matmul(keys.permute(0, 1, 3, 2)) # [B, N, F, T]
         att_probs = None
 
-        ####### att_prob ==> att_scores = transpose(X) * Y / d**0.5
-        ####### to_from = softmax( transpose(Y) * X )
-        ####### to_centroid = K = ( transpose(Y) * X ) * X
-        ####### kmeas : att_scores = Q*transpose(K)
-        ####### control = A(Q,K,V) = ( transpose(Q) * K ) * Y
-        ####### to_from is the transpose of att_prob ??
         for i in range(self.kmeans_iters):
             if self.kmeans:
                 if i > 0:##即使为0，tofrom和tocentroid已经输出过了，此处仅重复
@@ -878,6 +867,10 @@ class TransformerLayer(torch.nn.Module):
 ################################################################################################################
 ################################################################################################################
 
+
+
+
+
 class SPADE_norm_denorm(torch.nn.Module):
 
     def __init__(self,in_channels, out_channels, kernel_size=1, bias=None, up=None,resample_kernel=None, gain=None):
@@ -927,7 +920,6 @@ class skip_op(torch.nn.Module):
         self.spade = spade
         if self.spade == True:
             self.spade_norm = SPADE_norm_denorm(in_channels=in_channels,out_channels=out_channels)
-            print('spade layer activated in skip connection')
 
     def forward(self,x,feature_from_encoder=None):
         x = self.skip(x)
@@ -1100,7 +1092,8 @@ class DecodingLayer(torch.nn.Module):
 
 
     def forward(self,input_feature_layer, x, y, att_vars = None, pos = None, mask = None,
-                noise_mode = "random", fused_modconv = True,label=None,**_kwargs):
+                noise_mode = "random", fused_modconv = True,
+                feature_from_encoder=None,**_kwargs):
         assert noise_mode in ["random", "const", "none"]
         torch_misc.assert_shape(x, [None, self.weight.shape[1], self.in_res, 2*self.in_res])
         ### y is latent [ B ,17, 32]
@@ -1127,16 +1120,15 @@ class DecodingLayer(torch.nn.Module):
 
 
         if self.transformer is not None:
-            x_label = torch.cat([x, label], dim=1)
+            x_cat = torch.cat([x,feature_from_encoder],dim = 1)
             shape = x.shape
             x = x.reshape(shape[0], shape[1], -1).permute(0, 2, 1)
-            x_label = x_label.reshape(shape[0], x_label.shape[1], -1).permute(0, 2, 1)
+            x_cat = x_cat.reshape(shape[0], x_cat.shape[1], -1).permute(0, 2, 1)
             x, att_map, att_vars = self.transformer(
                 from_tensor = x,            to_tensor = get_components(y),
                 from_pos = self.grid_pos,   to_pos = pos if self.use_pos else None,
                 att_vars = att_vars,        att_mask = mask.unsqueeze(1),
-                hw_shape = shape[-2:],      label = label,
-                x_label  = x_label
+                hw_shape = shape[-2:],      x_cat = x_cat,
             )
             x = x.permute(0, 2, 1).reshape(shape)
 
@@ -1185,14 +1177,14 @@ class DecoderBlock_1spade(torch.nn.Module):
 
 
         ## input initialization
-        # if self.stem:
-        #     # if latent_stem:
-        #         # optional todo: add local noise (to comply with TF version)
-            # self.conv_stem = FullyConnectedLayer(self.w_dim, (in_channels//2),
-            #     act = "lrelu", gain = np.sqrt(2) / 4)
-            # self.num_conv += 1
+        if self.stem:
+            # if latent_stem:
+                # optional todo: add local noise (to comply with TF version)
+            self.conv_stem = FullyConnectedLayer(self.w_dim, (in_channels//2),
+                act = "lrelu", gain = np.sqrt(2) / 4)
+            self.num_conv += 1
             # else:
-            #     self.const = torch.nn.Parameter(torch.randn([in_channels//2, *self.init_shape]))
+            #     self.const = torch.nn.Parameter(torch.randn([out_channels, *self.init_shape]))
 
 
 
@@ -1203,21 +1195,14 @@ class DecoderBlock_1spade(torch.nn.Module):
                                        out_resolution=self.out_res, in_resolution=self.in_res,up = 1,
                                        resample_kernel=resample_kernel,
                                        y_dim=w_dim, style=style, **layer_kwargs)
-            self.project0 = torch.nn.Sequential(torch.nn.Conv2d(in_channels=67,out_channels=128,kernel_size=3,padding=1),
-                                                torch.nn.ReLU())
 
             self.conv1 = DecodingLayer(in_channels, out_channels,
                                        out_resolution=self.out_res, in_resolution=self.out_res,
                                        gain=1 if self.stem else get_gain(architecture),
                                        y_dim=w_dim, style=style, **layer_kwargs)
-            self.project1 = torch.nn.Sequential(torch.nn.Conv2d(in_channels=67,out_channels=128,kernel_size=3,padding=1),
-                                                torch.nn.ReLU())
             self.num_conv += 2
 
-            if self.architecture == 'resnet':
-                self.skip = skip_op(in_channels, out_channels, kernel_size=1, bias=False, up = 1,
-                                        resample_kernel=resample_kernel, gain=get_gain(architecture),
-                                    spade=True)
+            self.spade0 = SPADE_norm_denorm(in_channels=in_channels,out_channels=out_channels)
 
         elif not self.is_last:
             self.in_res = self.out_res//2
@@ -1225,22 +1210,15 @@ class DecoderBlock_1spade(torch.nn.Module):
                                        out_resolution=self.out_res,in_resolution=self.in_res,up = 2,
                                        resample_kernel=resample_kernel,
                                         y_dim=w_dim, style=style, **layer_kwargs)
-            self.project0 = torch.nn.Sequential(torch.nn.Conv2d(in_channels=67,out_channels=128,kernel_size=3,padding=1),
-                                                torch.nn.ReLU())
 
 
             self.conv1 = DecodingLayer(in_channels, out_channels,
                                        out_resolution=self.out_res,in_resolution=self.out_res,
                                         gain=1 if self.stem else get_gain(architecture),
                                         y_dim=w_dim, style=style, **layer_kwargs)
-            self.project1 = torch.nn.Sequential(torch.nn.Conv2d(in_channels=67,out_channels=128,kernel_size=3,padding=1),
-                                                torch.nn.ReLU())
             self.num_conv += 2
 
-            if self.architecture == 'resnet':
-                self.skip = skip_op(in_channels, out_channels, kernel_size=1, bias=False, up = 2,
-                                    resample_kernel=resample_kernel, gain=get_gain(architecture),
-                                    spade = True)
+            self.spade0 = SPADE_norm_denorm(in_channels=in_channels,out_channels=out_channels)
 
         elif self.is_last:
             self.in_res = self.out_res//2
@@ -1248,21 +1226,14 @@ class DecoderBlock_1spade(torch.nn.Module):
                                        out_resolution=self.out_res, in_resolution=self.in_res,up = 2,
                                        resample_kernel=resample_kernel,
                                        y_dim=w_dim, style=style, **layer_kwargs)
-            self.project0 = torch.nn.Sequential(torch.nn.Conv2d(in_channels=67,out_channels=128,kernel_size=3,padding=1),
-                                                torch.nn.ReLU())
 
             self.conv1 = DecodingLayer(in_channels, out_channels,
                                        out_resolution=self.out_res, in_resolution=self.out_res,
                                        gain=1 if self.stem else get_gain(architecture),
                                        y_dim=w_dim, style=style, **layer_kwargs)
-            self.project1 = torch.nn.Sequential(torch.nn.Conv2d(in_channels=67,out_channels=128,kernel_size=3,padding=1),
-                                                torch.nn.ReLU())
             self.num_conv += 2
 
-            if self.architecture == 'resnet':
-                self.skip = skip_op(in_channels, out_channels, kernel_size=1, bias=False, up = 2,
-                                        resample_kernel=resample_kernel, gain=get_gain(architecture),
-                                    spade=True)
+            self.spade0 = SPADE_norm_denorm(in_channels=in_channels,out_channels=out_channels)
 
 
 
@@ -1286,7 +1257,7 @@ class DecoderBlock_1spade(torch.nn.Module):
 
 
 
-    def forward(self,input_feature_block,emb,label, x, img, ws, att_vars, fused_modconv = None, **layer_kwargs):
+    def forward(self,input_feature_block,emb, x, img, ws, att_vars, fused_modconv = None, **layer_kwargs):
         torch_misc.assert_shape(ws, [None, None, self.num_conv + self.num_torgb, self.w_dim])
         w_iter = iter(ws.unbind(dim = 2))
 
@@ -1297,30 +1268,29 @@ class DecoderBlock_1spade(torch.nn.Module):
         # Input
         batch_size = ws.shape[0]
         if self.stem:
-
             batch_size = ws.shape[0]
             # if self.latent_stem:
-            # x = self.conv_stem(get_global(next(w_iter)))
-            # x_channel = x.shape[1]
-            # x = x.view(batch_size,x_channel,1,1).expand(batch_size,x_channel,self.in_res,2*self.in_res)
-            x = torch.randn(batch_size,self.in_channels//2,self.in_res,2*self.in_res,device=ws.device)
+            x = self.conv_stem(get_global(next(w_iter)))
+            x_channel = x.shape[1]
+            x = x.view(batch_size,x_channel,1,1).expand(batch_size,x_channel,self.in_res,2*self.in_res)
             init_emb = emb[f'res{self.in_res}'][0]
             x = torch.cat([init_emb,x],dim = 1)
             x = convert(x)
             att_maps = [None, None]
             output_features = []
-            y = self.skip(x,feature_from_encoder=input_feature_block[-1])
 
             x, att_maps[0], att_vars = self.conv0(None, x, next(w_iter), att_vars,
-                                                  fused_modconv=fused_modconv,label=self.project0(label),
-                                                                                    **layer_kwargs)
+                                                  fused_modconv=fused_modconv,
+                                                  feature_from_encoder=input_feature_block[-3],
+                                                  **layer_kwargs)
             output_features.append(x)
             x = torch.cat([x, emb[f'res{self.out_res}'][0]],dim=1)
             x, att_maps[0], att_vars = self.conv1(None, x, next(w_iter), att_vars,
-                                                  fused_modconv=fused_modconv,label=self.project1(label),
-                                                                                    **layer_kwargs)
+                                                  fused_modconv=fused_modconv,
+                                                  feature_from_encoder=input_feature_block[-2],
+                                                  **layer_kwargs)
             ####此处用[0]是为了确保输出list可以后期拼接？？
-            x = y.add_(x)
+            x = self.spade0(x,feature_from_encoder=input_feature_block[-1])
             x += emb[f'res{self.out_res}'][1]
             output_features.append(x)
 
@@ -1330,18 +1300,19 @@ class DecoderBlock_1spade(torch.nn.Module):
             # Main layers
             att_maps = [None, None]
             output_features = []
-            y = self.skip(x,feature_from_encoder=input_feature_block[-1])
 
             x, att_maps[0], att_vars = self.conv0(None,x, next(w_iter), att_vars,
-                                                  fused_modconv = fused_modconv,label=self.project0(label),
-                                                                                      **layer_kwargs)
+                                                  fused_modconv = fused_modconv,
+                                                  feature_from_encoder=input_feature_block[-3],
+                                                  **layer_kwargs)
             output_features.append(x)
             x = torch.cat([x,emb[f'res{self.out_res}'][0]],dim=1)
             x, att_maps[0], att_vars = self.conv1(None,x, next(w_iter), att_vars,
-                                                  fused_modconv = fused_modconv,label=self.project1(label),
-                                                                                      **layer_kwargs)
+                                                  fused_modconv = fused_modconv,
+                                                  feature_from_encoder=input_feature_block[-2],
+                                                  **layer_kwargs)
                 ####此处用[0]是为了确保输出list可以后期拼接？？
-            x = y.add_(x)
+            x = self.spade0(x,feature_from_encoder=input_feature_block[-1])
             x += emb[f'res{self.out_res}'][1]
             output_features.append(x)
 
@@ -1350,20 +1321,21 @@ class DecoderBlock_1spade(torch.nn.Module):
             # Main layers
             att_maps = [None, None]
             output_features = []
-            y = self.skip(x,feature_from_encoder=input_feature_block[-1])
 
             x, att_maps[0], att_vars = self.conv0(None, x, next(w_iter), att_vars,
-                                                  fused_modconv=fused_modconv,label=self.project0(label),
-                                                                                    **layer_kwargs)
+                                                  fused_modconv=fused_modconv,
+                                                  feature_from_encoder=input_feature_block[-3],
+                                                  **layer_kwargs)
             output_features.append(x)
             x = torch.cat([x, emb[f'res{self.out_res}'][0]], dim=1)
             x, att_maps[0], att_vars = self.conv1(None, x, next(w_iter), att_vars,
-                                                  fused_modconv=fused_modconv,label=self.project1(label),
-                                                                                    **layer_kwargs)
+                                                  fused_modconv=fused_modconv,
+                                                  feature_from_encoder=input_feature_block[-2],
+                                                  **layer_kwargs)
             ####此处用[0]是为了确保输出list可以后期拼接？？
-            x = y.add_(x)
-            output_features.append(x)
+            x = self.spade0(x,feature_from_encoder=input_feature_block[-1])
             x = torch.cat([x, emb[f'res{self.out_res}'][0]], dim=1)
+            output_features.append(x)
 
         # ToRGB
         if img is not None:
@@ -1473,8 +1445,7 @@ class DecoderNetwork_1spade(torch.nn.Module):
         for res, cur_ws in (zip(self.block_resolutions, block_ws)):
             input_feature_block = from_encoder[f'res{res}']
             block = getattr(self, f"b{res}")
-            block_label = torch.nn.functional.interpolate(label,size=[res,res*2],mode='nearest')
-            x, img, _att_maps, att_vars,output_features = block(input_feature_block,emb,block_label,x, img, cur_ws, att_vars, **block_kwargs)
+            x, img, _att_maps, att_vars,output_features = block(input_feature_block,emb,x, img, cur_ws, att_vars, **block_kwargs)
             att_maps += _att_maps
             output_of_decoder.append(output_features)
             idx += 1
@@ -1484,7 +1455,7 @@ class DecoderNetwork_1spade(torch.nn.Module):
         return output_of_decoder,img
 
 
-class BipartiteDecoder_shallow_skipSPD_3Dnoise(torch.nn.Module):
+class BipartiteDecoder_1spd_catFeat_noSkip(torch.nn.Module):
     def __init__(self,
                  z_dim,  # Input latent (Z) dimensionality
                  c_dim,  # Conditioning label (C) dimensionality
@@ -1527,15 +1498,13 @@ class BipartiteDecoder_shallow_skipSPD_3Dnoise(torch.nn.Module):
         # encoder_outputs = synthesis_kwargs['encoder_outputs']
         _input = z if z is not None else ws
         mask = random_dp_binary([_input.shape[0], self.k - 1], self.component_dropout, self.training, _input.device)
+
         if ws is None:
             ws = self.mapping(z, c, pos=self.pos, mask=mask, truncation_psi=truncation_psi,
                               truncation_cutoff=truncation_cutoff)
-
         torch_misc.assert_shape(ws, [None, self.k, self.num_ws, self.w_dim])
-        noise = torch.randn(size = [label.shape[0],32,256,512])
-        label = torch.cat([label,noise.to(label.device)],dim=1)
-        output_of_decoder,img = self.decoder(from_encoder,emb,label,ws, pos=self.pos, mask=mask, **synthesis_kwargs)
 
+        output_of_decoder,img = self.decoder(from_encoder,emb,label,ws, pos=self.pos, mask=mask, **synthesis_kwargs)
 
         return output_of_decoder,img
 

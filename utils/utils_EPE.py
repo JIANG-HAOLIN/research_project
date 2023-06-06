@@ -271,7 +271,7 @@ def update_EMA_vanillaG(model, cur_iter, dataloader, opt, force_run_stats=False)
             num_upd = 0
             for i, data_i in enumerate(dataloader):
                 image, label, label_map, instance_map  = models.preprocess_input(opt, data_i)
-                fake = model.module.netEMA(label=label)
+                fake = model.module.netEMA(label)
                 num_upd += 1
                 if num_upd > 50:
                     break
@@ -537,13 +537,13 @@ class vanillaG_image_saver():
             converted = converted
             latent = latent
             # print('label size',label.size(),'label_class_dict',label_class_dict.size(),)
-            fake = model.module.netG(label=label)
+            fake = model.module.netG(label)
             # print("fake size",fake.size())
             self.save_images(fake, "fake", cur_iter)
             model.train()
             if not self.opt.no_EMA:
                 model.eval()
-                fake = model.module.netEMA(label=label)
+                fake = model.module.netEMA(label)
                 self.save_images(fake, "fake_ema", cur_iter)
                 model.train()
 
@@ -589,14 +589,14 @@ class vanillaG_image_saver_all_in_one():
             model.eval()
             converted = converted
             latent = latent
-            fake = model.module.netG(label=label)
+            fake = model.module.netG(label)
             # self.save_fake_label_ema_in_one_pic(batch_label=label, batch_real=image, batch_fake=fake,
             #                                     batch_fake_ema=None, cur_iter=cur_iter)
 
             model.train()
             if not self.opt.no_EMA:
                 model.eval()
-                fake_ema = model.module.netEMA(label=label)
+                fake_ema = model.module.netEMA(label)
                 self.save_fake_label_ema_in_one_pic(batch_label=label,batch_real=image,batch_fake=fake,batch_fake_ema=fake_ema,cur_iter=cur_iter)
                 model.train()
 

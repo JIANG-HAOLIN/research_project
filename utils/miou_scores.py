@@ -175,9 +175,9 @@ class miou_pytorch_vanillaG():
             for i, data_i in enumerate(self.val_dataloader):
                 image, label, label_map, instance_map = models.preprocess_input(self.opt, data_i)
                 if self.opt.no_EMA:
-                    generated = netG(label=label)
+                    generated = netG(label)
                 else:
-                    generated = netEMA(label=label)
+                    generated = netEMA(label)
                 image_saver(label, generated, data_i["name"])
 
             if self.opt.dataset_mode == "ade20k":

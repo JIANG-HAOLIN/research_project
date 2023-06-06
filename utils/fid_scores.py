@@ -285,9 +285,9 @@ class fid_pytorch_vanillaG():
             for i, data_i in enumerate(self.val_dataloader):
                 image, label, label_map, instance_map = models.preprocess_input(self.opt, data_i)
                 if self.opt.no_EMA:
-                    generated = netG(label=label)
+                    generated = netG(label)
                 else:
-                    generated = netEMA(label=label)
+                    generated = netEMA(label)
                 generated = (generated + 1) / 2
                 #generated = torch.nn.functional.interpolate(generated,scale_factor= 0.5, mode='nearest')
                 pool_val = self.model_inc(generated.float())[0][:, :, 0, 0]

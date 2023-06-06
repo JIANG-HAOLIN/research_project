@@ -250,6 +250,34 @@ def update_EMA(model, cur_iter, dataloader, opt, force_run_stats=False):
                     break
 
 
+
+def update_EMA_vanillaG(model, cur_iter, dataloader, opt, force_run_stats=False):
+    # update weights based on new generator weights
+    with torch.no_grad():
+        for key in model.module.netEMA.state_dict():
+            model.module.netEMA.state_dict()[key].data.copy_(
+                model.module.netEMA.state_dict()[key].data * opt.EMA_decay +
+                model.module.netG.state_dict()[key].data   * (1 - opt.EMA_decay)
+            )
+    # collect running stats for batchnorm before FID computation, image or network saving
+    condition_run_stats = (force_run_stats or
+                           cur_iter % opt.freq_print == 0 or
+                           cur_iter % opt.freq_fid == 0 or
+                           cur_iter % opt.freq_save_ckpt == 0 or
+                           cur_iter % opt.freq_save_latest == 0
+                           )
+    if condition_run_stats:
+        with torch.no_grad():
+            num_upd = 0
+            for i, data_i in enumerate(dataloader):
+                image, label, label_map, instance_map  = models.preprocess_input(opt, data_i)
+                fake = model.module.netEMA(label=label)
+                num_upd += 1
+                if num_upd > 50:
+                    break
+
+
+
 def save_networks(opt, cur_iter, model, latest=False, best=False):
     path = os.path.join(opt.checkpoints_dir, opt.name, "models")
     os.makedirs(path, exist_ok=True)

@@ -18,6 +18,8 @@ pretrained_models/
 **/*.sh
 !1spade.sh
 !ganformer_oasisD.sh
+!ganformer_epe.sh
+!oasisG_epe.sh
 **/*.jpeg
 **/*.png
 __MACOSX/

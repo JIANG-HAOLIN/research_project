@@ -38,13 +38,13 @@ opt = config.read_arguments(train=True)
 # opt.only_CLADE = True
 # opt.add_dist = True
 #
-opt.dataroot = '/Users/hlj/Documents/NoSync.nosync/FA/cityscapes'
-opt.gpu_ids = '-1'
-opt.netG = 41322
-opt.batch_size = 2
-opt.checkpoints_dir='./checkpoints/test_cpu'
-opt.netD = 'EPE_origin'
-opt.name = 'oasis_cityscapes'
+# opt.dataroot = '/Users/hlj/Documents/NoSync.nosync/FA/cityscapes'
+# opt.gpu_ids = '-1'
+# opt.netG = 41322
+# opt.batch_size = 2
+# opt.checkpoints_dir='./checkpoints/test_cpu'
+# opt.netD = 'EPE_origin'
+# opt.name = 'oasis_cityscapes'
 
 device = "cpu" if opt.gpu_ids == '-1' else 'cuda'
 print("nb of gpus: ", torch.cuda.device_count())

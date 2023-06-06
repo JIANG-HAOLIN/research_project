@@ -31,7 +31,8 @@ class OASIS_model(nn.Module):
         self.opt = opt
         self.device_models = 'cpu' if self.opt.gpu_ids == '-1' else 'cuda'
         #--- generator and discriminator ---
-
+        if opt.netG == 1:
+            self.netG = generators.OASIS_Generator(opt)
         if opt.netG == 2:
             self.netG = generators.ImplicitGenerator_tanh(opt=opt, size=(256, 512), hidden_size=512,
                                                                 style_dim=512, n_mlp=8,

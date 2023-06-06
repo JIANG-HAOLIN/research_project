@@ -33,11 +33,11 @@ from models.blocks import mixing_noise
 opt = config.read_arguments(train=True)
 
 #
-opt.dataroot = '/Users/hlj/Documents/NoSync.nosync/FA/cityscapes'
-opt.gpu_ids = '-1'
-opt.netG = 41322
-opt.batch_size = 2
-opt.checkpoints_dir='./checkpoints/test_cpu'
+# opt.dataroot = '/Users/hlj/Documents/NoSync.nosync/FA/cityscapes'
+# opt.gpu_ids = '-1'
+# opt.netG = 41322
+# opt.batch_size = 2
+# opt.checkpoints_dir='./checkpoints/test_cpu'
 # opt.netD = 'EPE_origin'
 # opt.name = 'oasis_cityscapes'
 

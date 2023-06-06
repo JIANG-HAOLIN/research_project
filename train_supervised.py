@@ -30,12 +30,15 @@ from models.blocks import mixing_noise
 
 #--- read options ---#
 opt = config.read_arguments(train=True)
-opt.netG = 413222
-opt.batch_size = 2
 
-opt.gpu_ids = '-1'
-opt.checkpoints_dir='./checkpoints/test_cpu'
-opt.dataroot = '/Users/hlj/Documents/NoSync.nosync/FA/cityscapes'
+
+
+# opt.netG = 413222
+# opt.batch_size = 2
+#
+# opt.gpu_ids = '-1'
+# opt.checkpoints_dir='./checkpoints/test_cpu'
+# opt.dataroot = '/Users/hlj/Documents/NoSync.nosync/FA/cityscapes'
 
 
 # opt.gpu_ids = '0'

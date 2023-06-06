@@ -139,7 +139,7 @@ for epoch in range(start_epoch, opt.num_epochs):
         #--- stats update ---#
         if not opt.no_EMA:
             # utils.update_EMA(model, cur_iter, dataloader_supervised, opt)
-            utils.update_EMA(model, cur_iter, dataloader_supervised, opt)
+            utils.update_EMA_vanillaG(model, cur_iter, dataloader_supervised, opt)
         if cur_iter % opt.freq_print == 0:
             im_saver.visualize_batch(model,
                                      image,
@@ -170,7 +170,7 @@ for epoch in range(start_epoch, opt.num_epochs):
         visualizer_losses(cur_iter, losses_G_list+losses_D_list+loss_G_realism)
 
 #--- after training ---#
-utils.update_EMA(model, cur_iter, dataloader_supervised, opt, force_run_stats=True)
+utils.update_EMA_vanillaG(model, cur_iter, dataloader_supervised, opt, force_run_stats=True)
 utils.save_networks(opt, cur_iter, model)
 utils.save_networks(opt, cur_iter, model, latest=True)
 is_best = fid_computer.update(model, cur_iter)

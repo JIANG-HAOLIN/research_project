@@ -31,8 +31,7 @@ class OASIS_model(nn.Module):
         self.opt = opt
         self.device_models = 'cpu' if self.opt.gpu_ids == '-1' else 'cuda'
         #--- generator and discriminator ---
-        if opt.netG == 1:
-            self.netG = generators.OASIS_Generator(opt)
+
         if opt.netG == 2:
             self.netG = generators.ImplicitGenerator_tanh(opt=opt, size=(256, 512), hidden_size=512,
                                                                 style_dim=512, n_mlp=8,
@@ -115,6 +114,18 @@ class OASIS_model(nn.Module):
             self.netG = generators.ImplicitGenerator_bipDEC_shallow_skipSPD_3Dnoise_noisylb(opt=opt, dict=dict)
         if opt.netG == 413223:
             self.netG = generators.ImplicitGenerator_bipDEC_shallow2_skipSPD_3Dnoise_noisylb(opt=opt, dict=dict)
+        if opt.netG == 413224:
+            self.netG = generators.ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_noisylb_endspd(opt=opt,dict=dict)
+        if opt.netG == 413225:
+            self.netG = generators.ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_noisylb_OASIS(opt=opt,dict=dict)
+        if opt.netG == 413226:
+            self.netG = generators.ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_OASIS_withend(opt=opt,dict=dict)
+        if opt.netG == 413227:
+            self.netG = generators.ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_noisylb_simplex(opt=opt,dict=dict)
+        if opt.netG == 4132271:
+            self.netG = generators.ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_noisylb_simplex_layernorm(opt=opt,dict=dict)
+        if opt.netG == 413228:
+            self.netG = generators.ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_noisylb_simplex_SE(opt=opt,dict=dict)
         if opt.netG == 4133:
             self.netG = generators.ImplicitGenerator_multiscaleU_transconv_nomod_bipartiteDEcoder_cat_no_spade_iter(opt=opt,dict=dict)
         if opt.netG == 4134:
@@ -125,6 +136,8 @@ class OASIS_model(nn.Module):
             self.netG = generators.ImplicitGenerator_multiscaleU_transconv_nomod_bipartiteDEcoder_catFeature_skipSPD_3iter33styles(opt=opt,dict=dict)
         if opt.netG == 4136:
             self.netG = generators.ImplicitGenerator_multiscaleU_transconv_nomod_bipartiteDEcoder_catFeature_skipSPD_noDistmap(opt=opt,dict=dict)
+        if opt.netG == 5:
+            self.netG = generators.ImplicitGenerator_clade_simplex(opt=opt,dict=dict)
         if opt.phase == "train":
             self.netD = discriminators.OASIS_Discriminator(opt)
         self.print_parameter_count()

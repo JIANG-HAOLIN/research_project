@@ -1409,6 +1409,20 @@ class conv_bn_relu(nn.Module):
         return x
 
 
+class conv_layernorm_relu(nn.Module):
+    def __init__(self,in_channels=None,out_channels=None,kernel_size=None,padding=None,h=None,w=None):
+        super(conv_layernorm_relu, self).__init__()
+        self.conv2d = nn.Conv2d(in_channels=in_channels,out_channels=out_channels,
+                                kernel_size=kernel_size,padding=padding)
+        self.norm = nn.LayerNorm([out_channels,h,w])
+        self.act = nn.ReLU()
+    def forward(self,x):
+        x = self.conv2d(x)
+        x = self.norm(x)
+        x = self.act(x)
+        return x
+
+
 class conv_bn(nn.Module):
     def __init__(self,in_channels=None,out_channels=None,kernel_size=None,padding=None,):
         super(conv_bn, self).__init__()
@@ -1757,6 +1771,52 @@ class Conv_encoder_avepool_for_bipartite_decoder(nn.Module):
                 encoder_block.append(conv_bn_relu(in_channels=out_channel_en,
                                                                 out_channels=out_channel_en, kernel_size=3,
                                                                 padding='same'))
+
+            in_channel_en = out_channel_en
+            encoder_block.append(nn.AvgPool2d(kernel_size=2, stride=2))
+            setattr(self, f'encoder_block_res{resolution}', encoder_block)
+    def forward(self,x):
+        blockss_outputs = {}
+        for idx,resolution in enumerate(self.block_resolutions):
+            block_outputs = []
+            block = getattr(self, f'encoder_block_res{resolution}')
+            for layer in block:
+                x = layer(x)
+                if layer != block[-1]:
+                    block_outputs.append(x)
+            blockss_outputs[f'res{resolution}']=block_outputs
+        return x,blockss_outputs
+
+class Conv_encoder_avepool_for_bipartite_decoder_layernorm(nn.Module):
+    def __init__(self,block_resolutions=None,
+                 channels_nums=None,
+                 in_channel=67):
+        super(Conv_encoder_avepool_for_bipartite_decoder_layernorm, self).__init__()
+        self.encoder = nn.ModuleList()
+        self.block_resolutions = block_resolutions## input resolution
+        self.channels_nums = channels_nums## input channel
+        in_channel_en = in_channel
+        for idx, resolution in enumerate(self.block_resolutions):
+            encoder_block = nn.ModuleList()
+            ############### Encoder ##############################
+            out_channel_en = self.channels_nums[idx]
+
+            encoder_block.append(conv_layernorm_relu(in_channels=in_channel_en,
+                                                out_channels=out_channel_en, kernel_size=3,
+                                                padding='same',h=resolution,w=2*resolution))
+            encoder_block.append(conv_layernorm_relu(in_channels=out_channel_en,
+                                                out_channels=out_channel_en, kernel_size=3,
+                                                padding='same',h=resolution,w=2*resolution))
+            encoder_block.append(conv_layernorm_relu(in_channels=out_channel_en,
+                                                out_channels=out_channel_en, kernel_size=3,
+                                                padding='same',h=resolution,w=2*resolution))
+            if resolution == 256:
+                encoder_block.append(conv_layernorm_relu(in_channels=out_channel_en,
+                                                                out_channels=out_channel_en, kernel_size=3,
+                                                                padding='same',h=resolution,w=2*resolution))
+                encoder_block.append(conv_layernorm_relu(in_channels=out_channel_en,
+                                                                out_channels=out_channel_en, kernel_size=3,
+                                                                padding='same',h=resolution,w=2*resolution))
 
             in_channel_en = out_channel_en
             encoder_block.append(nn.AvgPool2d(kernel_size=2, stride=2))

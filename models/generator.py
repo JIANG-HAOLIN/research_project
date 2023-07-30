@@ -24,6 +24,20 @@ from models.ganformer.NetworkS.bipaDEC_cat_nospade import BipartiteDecoder_cat_n
 from models.ganformer.NetworkS.bipaDEC_contrastive import BipartiteDecoder_contrastive
 from models.ganformer.NetworkS.bipaDEC_catFeature_skipSPD import BipartiteDecoder_catFeature_skipSPD
 from models.ganformer.NetworkS.bipaDEC_catLabel_skipSPD_3Dnoise import BipartiteDecoder_catlabel_skipSPD_3Dnoise
+from models.ganformer.NetworkS.bipaDEC_catLabel_skipSPD_3Dnoise_simplex import BipartiteDecoder_catlabel_skipSPD_3Dnoise_simplex
+from models.ganformer.NetworkS.bipaDEC_catLabel_skipSPD_3Dnoise_simplex_layernorm import BipartiteDecoder_catlabel_skipSPD_3Dnoise_simplex_layernorm
+
+from models.ganformer.NetworkS.bipaDEC_catLabel_skipSPD_3Dnoise_SE import BipartiteDecoder_catlabel_skipSPD_3Dnoise_SE
+from models.ganformer.NetworkS.bipaDEC_catLabel_skipSPD_3Dnoise_simplex_SE import BipartiteDecoder_catlabel_skipSPD_3Dnoise_simplex_SE
+
+
+
+from models.ganformer.NetworkS.bipaDEC_catLabel_skipSPD_3Dnoise_endspd import BipartiteDecoder_catlabel_skipSPD_3Dnoise_endspd
+from models.ganformer.NetworkS.bipaDEC_catLabel_skipSPD_3Dnoise_simplified import BipartiteDecoder_catlabel_skipSPD_3Dnoise_OASIS
+from models.ganformer.NetworkS.bipaDEC_catLabel_skipSPD_3Dnoise_simplified_with_end import BipartiteDecoder_catlabel_skipSPD_3Dnoise_OASIS_withend
+from models.ganformer.NetworkS.clade_simplex import clade_simplex
+
+
 from models.ganformer.NetworkS.bipaDEC_shallow_skipSPD_3Dnoise import BipartiteDecoder_shallow_skipSPD_3Dnoise
 from models.ganformer.NetworkS.bipaDEC_shallow2_skipSPD_3Dnoise import BipartiteDecoder_shallow2_skipSPD_3Dnoise
 
@@ -3864,6 +3878,7 @@ class ImplicitGenerator_multiscaleU_transconv_nomod_bipartiteDEcoder_1spade_catF
                                               channels_nums=encoder_channels,
                                               in_channel=in_channel_en)
 
+
         mapping_kwargs = {'num_layers': 8,
                           'layer_dim': None,
                           'act': 'lrelu',
@@ -3877,6 +3892,7 @@ class ImplicitGenerator_multiscaleU_transconv_nomod_bipartiteDEcoder_1spade_catF
                           'ltnt_gate': False,
                           'use_pos': True,
                           'normalize_global': True}
+        ### for duplex: kmeans=True
         decoder_kwargs = {'crop_ratio': None,
                           'channel_base': 32768,
                           'channel_max': 512,
@@ -3895,7 +3911,7 @@ class ImplicitGenerator_multiscaleU_transconv_nomod_bipartiteDEcoder_1spade_catF
                           'img_gate': False,
                           'integration': 'mul',
                           'norm': 'layer',
-                          'kmeans': True,
+                          'kmeans': False,
                           'kmeans_iters': 3,
                           'iterative': False,
                           'use_pos': True,
@@ -5770,6 +5786,219 @@ class ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_noisylb(nn.Module):##413
 
 
 
+
+
+class ImplicitGenerator_clade_simplex(nn.Module):##5
+    def __init__(self, opt=None, **kwargs):
+        super(ImplicitGenerator_clade_simplex, self).__init__()
+        self.opt = opt
+        self.device = 'cpu' if opt.gpu_ids == '-1' else 'cuda'
+        n_mlp = opt.n_mlp
+        style_dim = opt.style_dim
+        lr_mlp = opt.lr_mlp
+        activation = opt.activation
+        hidden_size = opt.hidden_size
+        channel_multiplier = opt.channel_multiplier
+        demodulate = False
+        decoder_param = {}
+        decoder_param['style_dim'] = style_dim
+        decoder_param['demodulate'] = demodulate
+        decoder_param['approach'] = 'SPADE_like'
+        decoder_param['activation'] = activation
+        decoder_param['add_dist'] = opt.add_dist
+
+
+
+        self.add_dist = opt.add_dist
+        self.tanh = nn.Tanh()
+
+        self.final_channel = opt.final_channel
+        self.input_size = opt.input_size
+
+
+        in_channel_en = 67
+        encoder_resolutions = [256, 128, 64, 32, 16]
+        encoder_channels = [32, 64, 128, 256, 512]##若加逗号，输入函数后会变成turple！！！
+
+        self.encoder = CIPblocks.Conv_encoder_avepool_for_bipartite_decoder(block_resolutions=encoder_resolutions,
+                                              channels_nums=encoder_channels,
+                                              in_channel=in_channel_en)
+
+        mapping_kwargs = {'num_layers': 8,
+                          'layer_dim': None,
+                          'act': 'lrelu',
+                          'lrmul': 0.01,
+                          'w_avg_beta': 0.997,
+                          'resnet': True,
+                          'ltnt2ltnt': True,
+                          'transformer': True,
+                          'num_heads': 1,
+                          'attention_dropout': 0.12,
+                          'ltnt_gate': False,
+                          'use_pos': True,
+                          'normalize_global': True}
+        decoder_kwargs = {'crop_ratio': None,
+                          'channel_base': 32768,
+                          'channel_max': 512,
+                          'architecture': 'resnet',
+                          'resample_kernel': [1, 3, 3, 1],
+                          'local_noise': True,
+                          'act': 'lrelu',
+                          'ltnt_stem': False,
+                          'style': True,
+                          'transformer': True,
+                          'start_res': 0,
+                          'end_res': 8,
+                          'num_heads': 1,
+                          'attention_dropout': 0.12,
+                          'ltnt_gate': False,
+                          'img_gate': False,
+                          'integration': 'mul',
+                          'norm': 'layer',
+                          'kmeans': False,
+                          'kmeans_iters': 1,
+                          'iterative': False,
+                          'use_pos': True,
+                          'pos_dim': None,
+                          'pos_type': 'sinus',
+                          'pos_init': 'uniform',
+                          'pos_directions_num': 2}
+        _kwargs = {'nothing': None}
+
+        self.decoder = clade_simplex(
+            z_dim=32,  # Input latent (Z) dimensionality
+            c_dim=0,  # Conditioning label (C) dimensionality
+            w_dim=32,  # Intermediate latent (W) dimensionality
+            k=36,  # Number of latent vector components z_1,...,z_k
+            img_resolution=256,  # Output resolution
+            img_channels=3,  # Number of output color channels
+            component_dropout=0.0,  # Dropout over the latent components, 0 = disable
+            mapping_kwargs=mapping_kwargs,
+            decoder_kwargs=decoder_kwargs,  # Arguments for SynthesisNetwork
+            **_kwargs  # Ignore unrecognized keyword args
+        )
+
+
+
+        self.lff_16 = CIPblocks.LFF(256)
+        self.lff_32 = CIPblocks.LFF(128)
+        self.lff_64 = CIPblocks.LFF(64)
+        self.lff_128 = CIPblocks.LFF(32)
+        self.lff_256 = CIPblocks.LFF(16)
+
+        self.lff_encoder = CIPblocks.LFF(16)
+
+        self.connector_lff_16 = CIPblocks.LFF(256)
+        self.connector_lff_32 = CIPblocks.LFF(128)
+        self.connector_lff_64 = CIPblocks.LFF(64)
+        self.connector_lff_128 = CIPblocks.LFF(32)
+        self.connector_lff_256 = CIPblocks.LFF(16)
+
+        self.coords16 = tt.convert_to_coord_format(1, 16, 32, integer_values=False,device=self.device)
+        self.coords32 = tt.convert_to_coord_format(1, 32, 64, integer_values=False,device=self.device)
+        self.coords64 = tt.convert_to_coord_format(1, 64, 128, integer_values=False,device=self.device)
+        self.coords128 = tt.convert_to_coord_format(1, 128, 256, integer_values=False,device=self.device)
+        self.coords256 = tt.convert_to_coord_format(1, 256, 512, integer_values=False,device=self.device)
+
+        self.style_dim = style_dim
+
+
+
+    def forward(self,
+                label,##[1,35,256,512]
+                label_class_dict,
+                coords,##[1,2,256,512]
+                latent,##1D list[Tensor(1,512)]
+                return_latents=False,
+                truncation=1,
+                truncation_latent=None,
+                input_is_latent=False,
+                edges=None,
+                dict = None
+                ):
+        batch_size,_,H,W = label.shape
+
+
+        label_class_dict,dist_map = label_class_dict[:,0,:,:],label_class_dict[:,1:,:,:]
+
+        label_16 = F.interpolate(label, (16, 32), mode='nearest')
+        label_32 = F.interpolate(label, (32, 64), mode='nearest')
+        label_64 = F.interpolate(label, (64, 128), mode='nearest')
+        label_128 = F.interpolate(label, (128, 256), mode='nearest')
+        labels = [label_16,label_32,label_64,label_128,label]
+        latent = [None,labels]
+
+        dist_map16 = dict['dist_16_to_128'][16]
+        dist_map32 = dict['dist_16_to_128'][32]
+        dist_map64 = dict['dist_16_to_128'][64]
+        dist_map128 = dict['dist_16_to_128'][128]
+        dist_map256 = dist_map
+
+        ff_coords_16 = self.lff_16(self.coords16).expand(batch_size,-1,-1,-1)
+        ff_coords_32 = self.lff_32(self.coords32).expand(batch_size,-1,-1,-1)
+        ff_coords_64 = self.lff_64(self.coords64).expand(batch_size,-1,-1,-1)
+        ff_coords_128 = self.lff_128(self.coords128).expand(batch_size,-1,-1,-1)
+        ff_coords_256 = self.lff_256(self.coords256).expand(batch_size,-1,-1,-1)
+
+
+        ff_dist16 = self.lff_16(dist_map16)
+        ff_dist32 = self.lff_32(dist_map32)
+        ff_dist64 = self.lff_64(dist_map64)
+        ff_dist128 = self.lff_128(dist_map128)
+        ff_dist256 = self.lff_256(dist_map256)
+
+        connector_16 = torch.cat(
+            (self.connector_lff_16(self.coords16).expand(batch_size,-1,-1,-1),self.connector_lff_16(dist_map16)),
+            dim=1)
+        connector_32 = torch.cat(
+            (self.connector_lff_32(self.coords32).expand(batch_size,-1,-1,-1),self.connector_lff_32(dist_map32)),
+            dim=1)
+        connector_64 = torch.cat(
+            (self.connector_lff_64(self.coords64).expand(batch_size,-1,-1,-1),self.connector_lff_64(dist_map64)),
+            dim=1)
+        connector_128 = torch.cat(
+            (self.connector_lff_128(self.coords128).expand(batch_size,-1,-1,-1),self.connector_lff_128(dist_map128)),
+            dim=1)
+        connector_256 = torch.cat(
+            (self.connector_lff_256(self.coords256).expand(batch_size,-1,-1,-1),self.connector_lff_256(dist_map256)),
+            dim=1)
+
+
+        ff16 = torch.cat([ff_coords_16, ff_dist16 ], 1)
+        ff32 = torch.cat([ff_coords_32, ff_dist32 ], 1)
+        ff64 = torch.cat([ff_coords_64, ff_dist64 ], 1)
+        ff128 = torch.cat([ff_coords_128, ff_dist128 ], 1)
+        ff256 = torch.cat([ff_coords_256, ff_dist256 ], 1)
+        ffs = [ff16,ff32,ff64,ff128,ff256]
+        emb = {
+            'res16':  [ff16, connector_16],
+            'res32':  [ff32, connector_32],
+            'res64':  [ff64, connector_64],
+            'res128': [ff128, connector_128],
+            'res256': [ff256, connector_256]
+        }
+
+
+
+        encoder_input = torch.cat([label+torch.normal(0.0,0.1*torch.ones(label.shape)).to(self.device),
+                                   self.lff_encoder(self.coords256).expand(batch_size,-1,-1,-1),
+                                   self.lff_encoder(dist_map256)],
+                                   dim = 1)
+        _, encoder_outputs = self.encoder(encoder_input)
+
+        z = torch.randn([batch_size, *self.decoder.input_shape[1:]], device=self.device)
+
+        output_from_decoder,rgb = self.decoder(encoder_outputs,emb,label,z, truncation_psi = 0.7 )
+
+
+        if return_latents:
+            return rgb, latent
+        else:
+            return self.tanh(rgb), None
+
+
+
+
 class ImplicitGenerator_noEC_bipDEC_catFeat_skipSPD_3Dnoise_noisylb(nn.Module):##413221
     def __init__(self, opt=None, **kwargs):
         super(ImplicitGenerator_noEC_bipDEC_catFeat_skipSPD_3Dnoise_noisylb, self).__init__()
@@ -6426,6 +6655,1300 @@ class ImplicitGenerator_bipDEC_shallow2_skipSPD_3Dnoise_noisylb(nn.Module):##413
             return rgb, latent
         else:
             return self.tanh(rgb), None
+
+
+
+
+
+class ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_noisylb_endspd(nn.Module):##413224
+    def __init__(self, opt=None, **kwargs):
+        super(ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_noisylb_endspd, self).__init__()
+        self.opt = opt
+        self.device = 'cpu' if opt.gpu_ids == '-1' else 'cuda'
+        n_mlp = opt.n_mlp
+        style_dim = opt.style_dim
+        lr_mlp = opt.lr_mlp
+        activation = opt.activation
+        hidden_size = opt.hidden_size
+        channel_multiplier = opt.channel_multiplier
+        demodulate = False
+        decoder_param = {}
+        decoder_param['style_dim'] = style_dim
+        decoder_param['demodulate'] = demodulate
+        decoder_param['approach'] = 'SPADE_like'
+        decoder_param['activation'] = activation
+        decoder_param['add_dist'] = opt.add_dist
+
+        # if opt.apply_MOD_CLADE:
+        #     self.approach = 0
+        # elif opt.only_CLADE:
+        #     self.approach = 1.2
+        # elif opt.Matrix_Computation:
+        #     self.approach = 2
+        # else:
+        #     self.approach = -1
+
+        self.add_dist = opt.add_dist
+        self.tanh = nn.Tanh()
+
+        self.final_channel = opt.final_channel
+        self.input_size = opt.input_size
+
+
+        in_channel_en = 67
+        encoder_resolutions = [256, 128, 64, 32, 16]
+        encoder_channels = [32, 64, 128, 256, 512]##若加逗号，输入函数后会变成turple！！！
+
+        self.encoder = CIPblocks.Conv_encoder_avepool_for_bipartite_decoder(block_resolutions=encoder_resolutions,
+                                              channels_nums=encoder_channels,
+                                              in_channel=in_channel_en)
+
+        mapping_kwargs = {'num_layers': 8,
+                          'layer_dim': None,
+                          'act': 'lrelu',
+                          'lrmul': 0.01,
+                          'w_avg_beta': 0.995,
+                          'resnet': True,
+                          'ltnt2ltnt': True,
+                          'transformer': True,
+                          'num_heads': 1,
+                          'attention_dropout': 0.12,
+                          'ltnt_gate': False,
+                          'use_pos': True,
+                          'normalize_global': True}
+        decoder_kwargs = {'crop_ratio': None,
+                          'channel_base': 32768,
+                          'channel_max': 512,
+                          'architecture': 'resnet',
+                          'resample_kernel': [1, 3, 3, 1],
+                          'local_noise': True,
+                          'act': 'lrelu',
+                          'ltnt_stem': False,
+                          'style': True,
+                          'transformer': True,
+                          'start_res': 0,
+                          'end_res': 8,
+                          'num_heads': 1,
+                          'attention_dropout': 0.12,
+                          'ltnt_gate': False,
+                          'img_gate': False,
+                          'integration': 'mul',
+                          'norm': 'layer',
+                          'kmeans': True,
+                          'kmeans_iters': 1,
+                          'iterative': False,
+                          'use_pos': True,
+                          'pos_dim': None,
+                          'pos_type': 'sinus',
+                          'pos_init': 'uniform',
+                          'pos_directions_num': 2}
+        _kwargs = {'nothing': None}
+
+        self.bipartite_decoder = BipartiteDecoder_catlabel_skipSPD_3Dnoise_endspd(
+            z_dim=32,  # Input latent (Z) dimensionality
+            c_dim=0,  # Conditioning label (C) dimensionality
+            w_dim=32,  # Intermediate latent (W) dimensionality
+            k=17,  # Number of latent vector components z_1,...,z_k
+            img_resolution=256,  # Output resolution
+            img_channels=3,  # Number of output color channels
+            component_dropout=0.0,  # Dropout over the latent components, 0 = disable
+            mapping_kwargs=mapping_kwargs,
+            decoder_kwargs=decoder_kwargs,  # Arguments for SynthesisNetwork
+            **_kwargs  # Ignore unrecognized keyword args
+        )
+
+
+
+        self.lff_16 = CIPblocks.LFF(256)
+        self.lff_32 = CIPblocks.LFF(128)
+        self.lff_64 = CIPblocks.LFF(64)
+        self.lff_128 = CIPblocks.LFF(32)
+        self.lff_256 = CIPblocks.LFF(16)
+
+        self.lff_encoder = CIPblocks.LFF(16)
+
+        self.connector_lff_16 = CIPblocks.LFF(256)
+        self.connector_lff_32 = CIPblocks.LFF(128)
+        self.connector_lff_64 = CIPblocks.LFF(64)
+        self.connector_lff_128 = CIPblocks.LFF(32)
+        self.connector_lff_256 = CIPblocks.LFF(16)
+
+        self.coords16 = tt.convert_to_coord_format(1, 16, 32, integer_values=False,device=self.device)
+        self.coords32 = tt.convert_to_coord_format(1, 32, 64, integer_values=False,device=self.device)
+        self.coords64 = tt.convert_to_coord_format(1, 64, 128, integer_values=False,device=self.device)
+        self.coords128 = tt.convert_to_coord_format(1, 128, 256, integer_values=False,device=self.device)
+        self.coords256 = tt.convert_to_coord_format(1, 256, 512, integer_values=False,device=self.device)
+
+        self.style_dim = style_dim
+
+
+
+    def forward(self,
+                label,##[1,35,256,512]
+                label_class_dict,
+                coords,##[1,2,256,512]
+                latent,##1D list[Tensor(1,512)]
+                return_latents=False,
+                truncation=1,
+                truncation_latent=None,
+                input_is_latent=False,
+                edges=None,
+                dict = None
+                ):
+        batch_size,_,H,W = label.shape
+
+
+        label_class_dict,dist_map = label_class_dict[:,0,:,:],label_class_dict[:,1:,:,:]
+
+        label_16 = F.interpolate(label, (16, 32), mode='nearest')
+        label_32 = F.interpolate(label, (32, 64), mode='nearest')
+        label_64 = F.interpolate(label, (64, 128), mode='nearest')
+        label_128 = F.interpolate(label, (128, 256), mode='nearest')
+        labels = [label_16,label_32,label_64,label_128,label]
+        latent = [None,labels]
+
+        dist_map16 = dict['dist_16_to_128'][16]
+        dist_map32 = dict['dist_16_to_128'][32]
+        dist_map64 = dict['dist_16_to_128'][64]
+        dist_map128 = dict['dist_16_to_128'][128]
+        dist_map256 = dist_map
+
+        ff_coords_16 = self.lff_16(self.coords16).expand(batch_size,-1,-1,-1)
+        ff_coords_32 = self.lff_32(self.coords32).expand(batch_size,-1,-1,-1)
+        ff_coords_64 = self.lff_64(self.coords64).expand(batch_size,-1,-1,-1)
+        ff_coords_128 = self.lff_128(self.coords128).expand(batch_size,-1,-1,-1)
+        ff_coords_256 = self.lff_256(self.coords256).expand(batch_size,-1,-1,-1)
+
+
+        ff_dist16 = self.lff_16(dist_map16)
+        ff_dist32 = self.lff_32(dist_map32)
+        ff_dist64 = self.lff_64(dist_map64)
+        ff_dist128 = self.lff_128(dist_map128)
+        ff_dist256 = self.lff_256(dist_map256)
+
+        connector_16 = torch.cat(
+            (self.connector_lff_16(self.coords16).expand(batch_size,-1,-1,-1),self.connector_lff_16(dist_map16)),
+            dim=1)
+        connector_32 = torch.cat(
+            (self.connector_lff_32(self.coords32).expand(batch_size,-1,-1,-1),self.connector_lff_32(dist_map32)),
+            dim=1)
+        connector_64 = torch.cat(
+            (self.connector_lff_64(self.coords64).expand(batch_size,-1,-1,-1),self.connector_lff_64(dist_map64)),
+            dim=1)
+        connector_128 = torch.cat(
+            (self.connector_lff_128(self.coords128).expand(batch_size,-1,-1,-1),self.connector_lff_128(dist_map128)),
+            dim=1)
+        connector_256 = torch.cat(
+            (self.connector_lff_256(self.coords256).expand(batch_size,-1,-1,-1),self.connector_lff_256(dist_map256)),
+            dim=1)
+
+
+        ff16 = torch.cat([ff_coords_16, ff_dist16 ], 1)
+        ff32 = torch.cat([ff_coords_32, ff_dist32 ], 1)
+        ff64 = torch.cat([ff_coords_64, ff_dist64 ], 1)
+        ff128 = torch.cat([ff_coords_128, ff_dist128 ], 1)
+        ff256 = torch.cat([ff_coords_256, ff_dist256 ], 1)
+        ffs = [ff16,ff32,ff64,ff128,ff256]
+        emb = {
+            'res16':  [ff16, connector_16],
+            'res32':  [ff32, connector_32],
+            'res64':  [ff64, connector_64],
+            'res128': [ff128, connector_128],
+            'res256': [ff256, connector_256]
+        }
+
+
+        encoder_input = torch.cat([label+torch.normal(0.0,0.1*torch.ones(label.shape)).to(self.device),
+                                   self.lff_encoder(self.coords256).expand(batch_size,-1,-1,-1),
+                                   self.lff_encoder(dist_map256)],
+                                   dim = 1)
+        _, encoder_outputs = self.encoder(encoder_input)
+
+        z = torch.randn([batch_size, *self.bipartite_decoder.input_shape[1:]], device=self.device)
+
+        output_from_decoder,rgb = self.bipartite_decoder(encoder_outputs,emb,label,z, truncation_psi = 0.7 )
+
+
+        if return_latents:
+            return rgb, latent
+        else:
+            return self.tanh(rgb), None
+
+
+class ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_noisylb_OASIS(nn.Module):##413225
+    def __init__(self, opt=None, **kwargs):
+        super(ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_noisylb_OASIS, self).__init__()
+        self.opt = opt
+        self.device = 'cpu' if opt.gpu_ids == '-1' else 'cuda'
+        n_mlp = opt.n_mlp
+        style_dim = opt.style_dim
+        lr_mlp = opt.lr_mlp
+        activation = opt.activation
+        hidden_size = opt.hidden_size
+        channel_multiplier = opt.channel_multiplier
+        demodulate = False
+        decoder_param = {}
+        decoder_param['style_dim'] = style_dim
+        decoder_param['demodulate'] = demodulate
+        decoder_param['approach'] = 'SPADE_like'
+        decoder_param['activation'] = activation
+        decoder_param['add_dist'] = opt.add_dist
+
+        # if opt.apply_MOD_CLADE:
+        #     self.approach = 0
+        # elif opt.only_CLADE:
+        #     self.approach = 1.2
+        # elif opt.Matrix_Computation:
+        #     self.approach = 2
+        # else:
+        #     self.approach = -1
+
+        self.add_dist = opt.add_dist
+        self.tanh = nn.Tanh()
+
+        self.final_channel = opt.final_channel
+        self.input_size = opt.input_size
+
+
+        in_channel_en = 67
+        encoder_resolutions = [256, 128, 64, 32, 16]
+        encoder_channels = [32, 64, 128, 256, 512]##若加逗号，输入函数后会变成turple！！！
+
+
+        mapping_kwargs = {'num_layers': 8,
+                          'layer_dim': None,
+                          'act': 'lrelu',
+                          'lrmul': 0.01,
+                          'w_avg_beta': 0.995,
+                          'resnet': True,
+                          'ltnt2ltnt': True,
+                          'transformer': True,
+                          'num_heads': 1,
+                          'attention_dropout': 0.12,
+                          'ltnt_gate': False,
+                          'use_pos': True,
+                          'normalize_global': True}
+        decoder_kwargs = {'crop_ratio': None,
+                          'channel_base': 32768,
+                          'channel_max': 512,
+                          'architecture': 'resnet',
+                          'resample_kernel': [1, 3, 3, 1],
+                          'local_noise': True,
+                          'act': 'lrelu',
+                          'ltnt_stem': False,
+                          'style': True,
+                          'transformer': True,
+                          'start_res': 0,
+                          'end_res': 8,
+                          'num_heads': 1,
+                          'attention_dropout': 0.12,
+                          'ltnt_gate': False,
+                          'img_gate': False,
+                          'integration': 'mul',
+                          'norm': 'layer',
+                          'kmeans': True,
+                          'kmeans_iters': 1,
+                          'iterative': False,
+                          'use_pos': True,
+                          'pos_dim': None,
+                          'pos_type': 'sinus',
+                          'pos_init': 'uniform',
+                          'pos_directions_num': 2}
+        _kwargs = {'nothing': None}
+
+        self.bipartite_decoder = BipartiteDecoder_catlabel_skipSPD_3Dnoise_OASIS(
+            z_dim=32,  # Input latent (Z) dimensionality
+            c_dim=0,  # Conditioning label (C) dimensionality
+            w_dim=32,  # Intermediate latent (W) dimensionality
+            k=17,  # Number of latent vector components z_1,...,z_k
+            img_resolution=256,  # Output resolution
+            img_channels=3,  # Number of output color channels
+            component_dropout=0.0,  # Dropout over the latent components, 0 = disable
+            mapping_kwargs=mapping_kwargs,
+            decoder_kwargs=decoder_kwargs,  # Arguments for SynthesisNetwork
+            **_kwargs  # Ignore unrecognized keyword args
+        )
+
+
+
+        self.lff_16 = CIPblocks.LFF(256)
+        self.lff_32 = CIPblocks.LFF(128)
+        self.lff_64 = CIPblocks.LFF(64)
+        self.lff_128 = CIPblocks.LFF(32)
+        self.lff_256 = CIPblocks.LFF(16)
+
+        self.lff_encoder = CIPblocks.LFF(16)
+
+        self.connector_lff_16 = CIPblocks.LFF(256)
+        self.connector_lff_32 = CIPblocks.LFF(128)
+        self.connector_lff_64 = CIPblocks.LFF(64)
+        self.connector_lff_128 = CIPblocks.LFF(32)
+        self.connector_lff_256 = CIPblocks.LFF(16)
+
+        self.coords16 = tt.convert_to_coord_format(1, 16, 32, integer_values=False,device=self.device)
+        self.coords32 = tt.convert_to_coord_format(1, 32, 64, integer_values=False,device=self.device)
+        self.coords64 = tt.convert_to_coord_format(1, 64, 128, integer_values=False,device=self.device)
+        self.coords128 = tt.convert_to_coord_format(1, 128, 256, integer_values=False,device=self.device)
+        self.coords256 = tt.convert_to_coord_format(1, 256, 512, integer_values=False,device=self.device)
+
+        self.style_dim = style_dim
+
+
+
+    def forward(self,
+                label,##[1,35,256,512]
+                label_class_dict,
+                coords,##[1,2,256,512]
+                latent,##1D list[Tensor(1,512)]
+                return_latents=False,
+                truncation=1,
+                truncation_latent=None,
+                input_is_latent=False,
+                edges=None,
+                dict = None
+                ):
+        batch_size,_,H,W = label.shape
+
+
+        label_class_dict,dist_map = label_class_dict[:,0,:,:],label_class_dict[:,1:,:,:]
+
+        label_16 = F.interpolate(label, (16, 32), mode='nearest')
+        label_32 = F.interpolate(label, (32, 64), mode='nearest')
+        label_64 = F.interpolate(label, (64, 128), mode='nearest')
+        label_128 = F.interpolate(label, (128, 256), mode='nearest')
+        labels = [label_16,label_32,label_64,label_128,label]
+        latent = [None,labels]
+
+        dist_map16 = dict['dist_16_to_128'][16]
+        dist_map32 = dict['dist_16_to_128'][32]
+        dist_map64 = dict['dist_16_to_128'][64]
+        dist_map128 = dict['dist_16_to_128'][128]
+        dist_map256 = dist_map
+
+        ff_coords_16 = self.lff_16(self.coords16).expand(batch_size,-1,-1,-1)
+        ff_coords_32 = self.lff_32(self.coords32).expand(batch_size,-1,-1,-1)
+        ff_coords_64 = self.lff_64(self.coords64).expand(batch_size,-1,-1,-1)
+        ff_coords_128 = self.lff_128(self.coords128).expand(batch_size,-1,-1,-1)
+        ff_coords_256 = self.lff_256(self.coords256).expand(batch_size,-1,-1,-1)
+
+
+        ff_dist16 = self.lff_16(dist_map16)
+        ff_dist32 = self.lff_32(dist_map32)
+        ff_dist64 = self.lff_64(dist_map64)
+        ff_dist128 = self.lff_128(dist_map128)
+        ff_dist256 = self.lff_256(dist_map256)
+
+        connector_16 = torch.cat(
+            (self.connector_lff_16(self.coords16).expand(batch_size,-1,-1,-1),self.connector_lff_16(dist_map16)),
+            dim=1)
+        connector_32 = torch.cat(
+            (self.connector_lff_32(self.coords32).expand(batch_size,-1,-1,-1),self.connector_lff_32(dist_map32)),
+            dim=1)
+        connector_64 = torch.cat(
+            (self.connector_lff_64(self.coords64).expand(batch_size,-1,-1,-1),self.connector_lff_64(dist_map64)),
+            dim=1)
+        connector_128 = torch.cat(
+            (self.connector_lff_128(self.coords128).expand(batch_size,-1,-1,-1),self.connector_lff_128(dist_map128)),
+            dim=1)
+        connector_256 = torch.cat(
+            (self.connector_lff_256(self.coords256).expand(batch_size,-1,-1,-1),self.connector_lff_256(dist_map256)),
+            dim=1)
+
+
+        ff16 = torch.cat([ff_coords_16, ff_dist16 ], 1)
+        ff32 = torch.cat([ff_coords_32, ff_dist32 ], 1)
+        ff64 = torch.cat([ff_coords_64, ff_dist64 ], 1)
+        ff128 = torch.cat([ff_coords_128, ff_dist128 ], 1)
+        ff256 = torch.cat([ff_coords_256, ff_dist256 ], 1)
+        ffs = [ff16,ff32,ff64,ff128,ff256]
+        emb = {
+            'res16':  [ff16, connector_16],
+            'res32':  [ff32, connector_32],
+            'res64':  [ff64, connector_64],
+            'res128': [ff128, connector_128],
+            'res256': [ff256, connector_256]
+        }
+
+
+        # encoder_input = torch.cat([label+torch.normal(0.0,0.1*torch.ones(label.shape)).to(self.device),
+        #                            self.lff_encoder(self.coords256).expand(batch_size,-1,-1,-1),
+        #                            self.lff_encoder(dist_map256)],
+        #                            dim = 1)
+
+        z = torch.randn([batch_size, *self.bipartite_decoder.input_shape[1:]], device=self.device)
+
+        output_from_decoder,rgb = self.bipartite_decoder(None,emb,label,z, truncation_psi = 0.7 )
+
+
+        if return_latents:
+            return rgb, latent
+        else:
+            return self.tanh(rgb), None
+
+
+
+
+class ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_OASIS_withend(nn.Module):##413226
+    def __init__(self, opt=None, **kwargs):
+        super(ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_OASIS_withend, self).__init__()
+        self.opt = opt
+        self.device = 'cpu' if opt.gpu_ids == '-1' else 'cuda'
+        n_mlp = opt.n_mlp
+        style_dim = opt.style_dim
+        lr_mlp = opt.lr_mlp
+        activation = opt.activation
+        hidden_size = opt.hidden_size
+        channel_multiplier = opt.channel_multiplier
+        demodulate = False
+        decoder_param = {}
+        decoder_param['style_dim'] = style_dim
+        decoder_param['demodulate'] = demodulate
+        decoder_param['approach'] = 'SPADE_like'
+        decoder_param['activation'] = activation
+        decoder_param['add_dist'] = opt.add_dist
+
+        # if opt.apply_MOD_CLADE:
+        #     self.approach = 0
+        # elif opt.only_CLADE:
+        #     self.approach = 1.2
+        # elif opt.Matrix_Computation:
+        #     self.approach = 2
+        # else:
+        #     self.approach = -1
+
+        self.add_dist = opt.add_dist
+        self.tanh = nn.Tanh()
+
+        self.final_channel = opt.final_channel
+        self.input_size = opt.input_size
+
+
+        in_channel_en = 67
+        encoder_resolutions = [256, 128, 64, 32, 16]
+        encoder_channels = [32, 64, 128, 256, 512]##若加逗号，输入函数后会变成turple！！！
+
+
+        mapping_kwargs = {'num_layers': 8,
+                          'layer_dim': None,
+                          'act': 'lrelu',
+                          'lrmul': 0.01,
+                          'w_avg_beta': 0.995,
+                          'resnet': True,
+                          'ltnt2ltnt': True,
+                          'transformer': True,
+                          'num_heads': 1,
+                          'attention_dropout': 0.12,
+                          'ltnt_gate': False,
+                          'use_pos': True,
+                          'normalize_global': True}
+        decoder_kwargs = {'crop_ratio': None,
+                          'channel_base': 32768,
+                          'channel_max': 512,
+                          'architecture': 'resnet',
+                          'resample_kernel': [1, 3, 3, 1],
+                          'local_noise': True,
+                          'act': 'lrelu',
+                          'ltnt_stem': False,
+                          'style': True,
+                          'transformer': True,
+                          'start_res': 0,
+                          'end_res': 8,
+                          'num_heads': 1,
+                          'attention_dropout': 0.12,
+                          'ltnt_gate': False,
+                          'img_gate': False,
+                          'integration': 'mul',
+                          'norm': 'layer',
+                          'kmeans': True,
+                          'kmeans_iters': 1,
+                          'iterative': False,
+                          'use_pos': True,
+                          'pos_dim': None,
+                          'pos_type': 'sinus',
+                          'pos_init': 'uniform',
+                          'pos_directions_num': 2}
+        _kwargs = {'nothing': None}
+
+        self.bipartite_decoder = BipartiteDecoder_catlabel_skipSPD_3Dnoise_OASIS_withend(
+            z_dim=32,  # Input latent (Z) dimensionality
+            c_dim=0,  # Conditioning label (C) dimensionality
+            w_dim=32,  # Intermediate latent (W) dimensionality
+            k=17,  # Number of latent vector components z_1,...,z_k
+            img_resolution=256,  # Output resolution
+            img_channels=3,  # Number of output color channels
+            component_dropout=0.0,  # Dropout over the latent components, 0 = disable
+            mapping_kwargs=mapping_kwargs,
+            decoder_kwargs=decoder_kwargs,  # Arguments for SynthesisNetwork
+            **_kwargs  # Ignore unrecognized keyword args
+        )
+
+
+
+        self.lff_16 = CIPblocks.LFF(256)
+        self.lff_32 = CIPblocks.LFF(128)
+        self.lff_64 = CIPblocks.LFF(64)
+        self.lff_128 = CIPblocks.LFF(32)
+        self.lff_256 = CIPblocks.LFF(16)
+
+        self.lff_encoder = CIPblocks.LFF(16)
+
+        self.connector_lff_16 = CIPblocks.LFF(256)
+        self.connector_lff_32 = CIPblocks.LFF(128)
+        self.connector_lff_64 = CIPblocks.LFF(64)
+        self.connector_lff_128 = CIPblocks.LFF(32)
+        self.connector_lff_256 = CIPblocks.LFF(16)
+
+        self.coords16 = tt.convert_to_coord_format(1, 16, 32, integer_values=False,device=self.device)
+        self.coords32 = tt.convert_to_coord_format(1, 32, 64, integer_values=False,device=self.device)
+        self.coords64 = tt.convert_to_coord_format(1, 64, 128, integer_values=False,device=self.device)
+        self.coords128 = tt.convert_to_coord_format(1, 128, 256, integer_values=False,device=self.device)
+        self.coords256 = tt.convert_to_coord_format(1, 256, 512, integer_values=False,device=self.device)
+
+        self.style_dim = style_dim
+
+
+
+    def forward(self,
+                label,##[1,35,256,512]
+                label_class_dict,
+                coords,##[1,2,256,512]
+                latent,##1D list[Tensor(1,512)]
+                return_latents=False,
+                truncation=1,
+                truncation_latent=None,
+                input_is_latent=False,
+                edges=None,
+                dict = None
+                ):
+        batch_size,_,H,W = label.shape
+
+
+        label_class_dict,dist_map = label_class_dict[:,0,:,:],label_class_dict[:,1:,:,:]
+
+        label_16 = F.interpolate(label, (16, 32), mode='nearest')
+        label_32 = F.interpolate(label, (32, 64), mode='nearest')
+        label_64 = F.interpolate(label, (64, 128), mode='nearest')
+        label_128 = F.interpolate(label, (128, 256), mode='nearest')
+        labels = [label_16,label_32,label_64,label_128,label]
+        latent = [None,labels]
+
+        dist_map16 = dict['dist_16_to_128'][16]
+        dist_map32 = dict['dist_16_to_128'][32]
+        dist_map64 = dict['dist_16_to_128'][64]
+        dist_map128 = dict['dist_16_to_128'][128]
+        dist_map256 = dist_map
+
+        ff_coords_16 = self.lff_16(self.coords16).expand(batch_size,-1,-1,-1)
+        ff_coords_32 = self.lff_32(self.coords32).expand(batch_size,-1,-1,-1)
+        ff_coords_64 = self.lff_64(self.coords64).expand(batch_size,-1,-1,-1)
+        ff_coords_128 = self.lff_128(self.coords128).expand(batch_size,-1,-1,-1)
+        ff_coords_256 = self.lff_256(self.coords256).expand(batch_size,-1,-1,-1)
+
+
+        ff_dist16 = self.lff_16(dist_map16)
+        ff_dist32 = self.lff_32(dist_map32)
+        ff_dist64 = self.lff_64(dist_map64)
+        ff_dist128 = self.lff_128(dist_map128)
+        ff_dist256 = self.lff_256(dist_map256)
+
+        connector_16 = torch.cat(
+            (self.connector_lff_16(self.coords16).expand(batch_size,-1,-1,-1),self.connector_lff_16(dist_map16)),
+            dim=1)
+        connector_32 = torch.cat(
+            (self.connector_lff_32(self.coords32).expand(batch_size,-1,-1,-1),self.connector_lff_32(dist_map32)),
+            dim=1)
+        connector_64 = torch.cat(
+            (self.connector_lff_64(self.coords64).expand(batch_size,-1,-1,-1),self.connector_lff_64(dist_map64)),
+            dim=1)
+        connector_128 = torch.cat(
+            (self.connector_lff_128(self.coords128).expand(batch_size,-1,-1,-1),self.connector_lff_128(dist_map128)),
+            dim=1)
+        connector_256 = torch.cat(
+            (self.connector_lff_256(self.coords256).expand(batch_size,-1,-1,-1),self.connector_lff_256(dist_map256)),
+            dim=1)
+
+
+        ff16 = torch.cat([ff_coords_16, ff_dist16 ], 1)
+        ff32 = torch.cat([ff_coords_32, ff_dist32 ], 1)
+        ff64 = torch.cat([ff_coords_64, ff_dist64 ], 1)
+        ff128 = torch.cat([ff_coords_128, ff_dist128 ], 1)
+        ff256 = torch.cat([ff_coords_256, ff_dist256 ], 1)
+        ffs = [ff16,ff32,ff64,ff128,ff256]
+        emb = {
+            'res16':  [ff16, connector_16],
+            'res32':  [ff32, connector_32],
+            'res64':  [ff64, connector_64],
+            'res128': [ff128, connector_128],
+            'res256': [ff256, connector_256]
+        }
+
+
+        # encoder_input = torch.cat([label+torch.normal(0.0,0.1*torch.ones(label.shape)).to(self.device),
+        #                            self.lff_encoder(self.coords256).expand(batch_size,-1,-1,-1),
+        #                            self.lff_encoder(dist_map256)],
+        #                            dim = 1)
+
+        z = torch.randn([batch_size, *self.bipartite_decoder.input_shape[1:]], device=self.device)
+
+        output_from_decoder,rgb = self.bipartite_decoder(None,emb,label,z, truncation_psi = 0.7 )
+
+
+        if return_latents:
+            return rgb, latent
+        else:
+            return self.tanh(rgb), None
+
+
+class ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_noisylb_simplex(nn.Module):##413227
+    def __init__(self, opt=None, **kwargs):
+        super(ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_noisylb_simplex, self).__init__()
+        self.opt = opt
+        self.device = 'cpu' if opt.gpu_ids == '-1' else 'cuda'
+        n_mlp = opt.n_mlp
+        style_dim = opt.style_dim
+        lr_mlp = opt.lr_mlp
+        activation = opt.activation
+        hidden_size = opt.hidden_size
+        channel_multiplier = opt.channel_multiplier
+        demodulate = False
+        decoder_param = {}
+        decoder_param['style_dim'] = style_dim
+        decoder_param['demodulate'] = demodulate
+        decoder_param['approach'] = 'SPADE_like'
+        decoder_param['activation'] = activation
+        decoder_param['add_dist'] = opt.add_dist
+
+        # if opt.apply_MOD_CLADE:
+        #     self.approach = 0
+        # elif opt.only_CLADE:
+        #     self.approach = 1.2
+        # elif opt.Matrix_Computation:
+        #     self.approach = 2
+        # else:
+        #     self.approach = -1
+
+        self.add_dist = opt.add_dist
+        self.tanh = nn.Tanh()
+
+        self.final_channel = opt.final_channel
+        self.input_size = opt.input_size
+
+
+        in_channel_en = 67
+        encoder_resolutions = [256, 128, 64, 32, 16]
+        encoder_channels = [32, 64, 128, 256, 512]##若加逗号，输入函数后会变成turple！！！
+
+        self.encoder = CIPblocks.Conv_encoder_avepool_for_bipartite_decoder(block_resolutions=encoder_resolutions,
+                                              channels_nums=encoder_channels,
+                                              in_channel=in_channel_en)
+
+        mapping_kwargs = {'num_layers': 8,
+                          'layer_dim': None,
+                          'act': 'lrelu',
+                          'lrmul': 0.01,
+                          'w_avg_beta': 0.995,
+                          'resnet': True,
+                          'ltnt2ltnt': True,
+                          'transformer': True,
+                          'num_heads': 1,
+                          'attention_dropout': 0.12,
+                          'ltnt_gate': False,
+                          'use_pos': True,
+                          'normalize_global': True}
+        decoder_kwargs = {'crop_ratio': None,
+                          'channel_base': 32768,
+                          'channel_max': 512,
+                          'architecture': 'resnet',
+                          'resample_kernel': [1, 3, 3, 1],
+                          'local_noise': True,
+                          'act': 'lrelu',
+                          'ltnt_stem': False,
+                          'style': True,
+                          'transformer': True,
+                          'start_res': 0,
+                          'end_res': 8,
+                          'num_heads': 1,
+                          'attention_dropout': 0.12,
+                          'ltnt_gate': False,
+                          'img_gate': False,
+                          'integration': 'mul',
+                          'norm': 'layer',
+                          'kmeans': False,
+                          'kmeans_iters': 1,
+                          'iterative': False,
+                          'use_pos': True,
+                          'pos_dim': None,
+                          'pos_type': 'sinus',
+                          'pos_init': 'uniform',
+                          'pos_directions_num': 2}
+        _kwargs = {'nothing': None}
+
+        self.bipartite_decoder = BipartiteDecoder_catlabel_skipSPD_3Dnoise_simplex(
+            z_dim=32,  # Input latent (Z) dimensionality
+            c_dim=0,  # Conditioning label (C) dimensionality
+            w_dim=32,  # Intermediate latent (W) dimensionality
+            k=17,  # Number of latent vector components z_1,...,z_k
+            img_resolution=256,  # Output resolution
+            img_channels=3,  # Number of output color channels
+            component_dropout=0.0,  # Dropout over the latent components, 0 = disable
+            mapping_kwargs=mapping_kwargs,
+            decoder_kwargs=decoder_kwargs,  # Arguments for SynthesisNetwork
+            **_kwargs  # Ignore unrecognized keyword args
+        )
+
+
+
+        self.lff_16 = CIPblocks.LFF(256)
+        self.lff_32 = CIPblocks.LFF(128)
+        self.lff_64 = CIPblocks.LFF(64)
+        self.lff_128 = CIPblocks.LFF(32)
+        self.lff_256 = CIPblocks.LFF(16)
+
+        self.lff_encoder = CIPblocks.LFF(16)
+
+        self.connector_lff_16 = CIPblocks.LFF(256)
+        self.connector_lff_32 = CIPblocks.LFF(128)
+        self.connector_lff_64 = CIPblocks.LFF(64)
+        self.connector_lff_128 = CIPblocks.LFF(32)
+        self.connector_lff_256 = CIPblocks.LFF(16)
+
+        self.coords16 = tt.convert_to_coord_format(1, 16, 32, integer_values=False,device=self.device)
+        self.coords32 = tt.convert_to_coord_format(1, 32, 64, integer_values=False,device=self.device)
+        self.coords64 = tt.convert_to_coord_format(1, 64, 128, integer_values=False,device=self.device)
+        self.coords128 = tt.convert_to_coord_format(1, 128, 256, integer_values=False,device=self.device)
+        self.coords256 = tt.convert_to_coord_format(1, 256, 512, integer_values=False,device=self.device)
+
+        self.style_dim = style_dim
+
+
+
+    def forward(self,
+                label,##[1,35,256,512]
+                label_class_dict,
+                coords,##[1,2,256,512]
+                latent,##1D list[Tensor(1,512)]
+                return_latents=False,
+                truncation=1,
+                truncation_latent=None,
+                input_is_latent=False,
+                edges=None,
+                dict = None
+                ):
+        batch_size,_,H,W = label.shape
+
+
+        label_class_dict,dist_map = label_class_dict[:,0,:,:],label_class_dict[:,1:,:,:]
+
+        label_16 = F.interpolate(label, (16, 32), mode='nearest')
+        label_32 = F.interpolate(label, (32, 64), mode='nearest')
+        label_64 = F.interpolate(label, (64, 128), mode='nearest')
+        label_128 = F.interpolate(label, (128, 256), mode='nearest')
+        labels = [label_16,label_32,label_64,label_128,label]
+        latent = [None,labels]
+
+        dist_map16 = dict['dist_16_to_128'][16]
+        dist_map32 = dict['dist_16_to_128'][32]
+        dist_map64 = dict['dist_16_to_128'][64]
+        dist_map128 = dict['dist_16_to_128'][128]
+        dist_map256 = dist_map
+
+        ff_coords_16 = self.lff_16(self.coords16).expand(batch_size,-1,-1,-1)
+        ff_coords_32 = self.lff_32(self.coords32).expand(batch_size,-1,-1,-1)
+        ff_coords_64 = self.lff_64(self.coords64).expand(batch_size,-1,-1,-1)
+        ff_coords_128 = self.lff_128(self.coords128).expand(batch_size,-1,-1,-1)
+        ff_coords_256 = self.lff_256(self.coords256).expand(batch_size,-1,-1,-1)
+
+
+        ff_dist16 = self.lff_16(dist_map16)
+        ff_dist32 = self.lff_32(dist_map32)
+        ff_dist64 = self.lff_64(dist_map64)
+        ff_dist128 = self.lff_128(dist_map128)
+        ff_dist256 = self.lff_256(dist_map256)
+
+        connector_16 = torch.cat(
+            (self.connector_lff_16(self.coords16).expand(batch_size,-1,-1,-1),self.connector_lff_16(dist_map16)),
+            dim=1)
+        connector_32 = torch.cat(
+            (self.connector_lff_32(self.coords32).expand(batch_size,-1,-1,-1),self.connector_lff_32(dist_map32)),
+            dim=1)
+        connector_64 = torch.cat(
+            (self.connector_lff_64(self.coords64).expand(batch_size,-1,-1,-1),self.connector_lff_64(dist_map64)),
+            dim=1)
+        connector_128 = torch.cat(
+            (self.connector_lff_128(self.coords128).expand(batch_size,-1,-1,-1),self.connector_lff_128(dist_map128)),
+            dim=1)
+        connector_256 = torch.cat(
+            (self.connector_lff_256(self.coords256).expand(batch_size,-1,-1,-1),self.connector_lff_256(dist_map256)),
+            dim=1)
+
+
+        ff16 = torch.cat([ff_coords_16, ff_dist16 ], 1)
+        ff32 = torch.cat([ff_coords_32, ff_dist32 ], 1)
+        ff64 = torch.cat([ff_coords_64, ff_dist64 ], 1)
+        ff128 = torch.cat([ff_coords_128, ff_dist128 ], 1)
+        ff256 = torch.cat([ff_coords_256, ff_dist256 ], 1)
+        ffs = [ff16,ff32,ff64,ff128,ff256]
+        emb = {
+            'res16':  [ff16, connector_16],
+            'res32':  [ff32, connector_32],
+            'res64':  [ff64, connector_64],
+            'res128': [ff128, connector_128],
+            'res256': [ff256, connector_256]
+        }
+
+
+        encoder_input = torch.cat([label+torch.normal(0.0,0.1*torch.ones(label.shape)).to(self.device),
+                                   self.lff_encoder(self.coords256).expand(batch_size,-1,-1,-1),
+                                   self.lff_encoder(dist_map256)],
+                                   dim = 1)
+        _, encoder_outputs = self.encoder(encoder_input)
+
+        z = torch.randn([batch_size, *self.bipartite_decoder.input_shape[1:]], device=self.device)
+
+        output_from_decoder,rgb = self.bipartite_decoder(encoder_outputs,emb,label,z, truncation_psi = 0.7 )
+
+
+        if return_latents:
+            return rgb, latent
+        else:
+            return self.tanh(rgb), None
+
+
+
+
+class ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_noisylb_simplex_layernorm(nn.Module):##4132271
+    def __init__(self, opt=None, **kwargs):
+        super(ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_noisylb_simplex_layernorm, self).__init__()
+        self.opt = opt
+        self.device = 'cpu' if opt.gpu_ids == '-1' else 'cuda'
+        n_mlp = opt.n_mlp
+        style_dim = opt.style_dim
+        lr_mlp = opt.lr_mlp
+        activation = opt.activation
+        hidden_size = opt.hidden_size
+        channel_multiplier = opt.channel_multiplier
+        demodulate = False
+        decoder_param = {}
+        decoder_param['style_dim'] = style_dim
+        decoder_param['demodulate'] = demodulate
+        decoder_param['approach'] = 'SPADE_like'
+        decoder_param['activation'] = activation
+        decoder_param['add_dist'] = opt.add_dist
+
+        # if opt.apply_MOD_CLADE:
+        #     self.approach = 0
+        # elif opt.only_CLADE:
+        #     self.approach = 1.2
+        # elif opt.Matrix_Computation:
+        #     self.approach = 2
+        # else:
+        #     self.approach = -1
+
+        self.add_dist = opt.add_dist
+        self.tanh = nn.Tanh()
+
+        self.final_channel = opt.final_channel
+        self.input_size = opt.input_size
+
+
+        in_channel_en = 67
+        encoder_resolutions = [256, 128, 64, 32, 16]
+        encoder_channels = [32, 64, 128, 256, 512]##若加逗号，输入函数后会变成turple！！！
+
+        self.encoder = CIPblocks.Conv_encoder_avepool_for_bipartite_decoder_layernorm(block_resolutions=encoder_resolutions,
+                                              channels_nums=encoder_channels,
+                                              in_channel=in_channel_en)
+
+        mapping_kwargs = {'num_layers': 8,
+                          'layer_dim': None,
+                          'act': 'lrelu',
+                          'lrmul': 0.01,
+                          'w_avg_beta': 0.995,
+                          'resnet': True,
+                          'ltnt2ltnt': True,
+                          'transformer': True,
+                          'num_heads': 1,
+                          'attention_dropout': 0.12,
+                          'ltnt_gate': False,
+                          'use_pos': True,
+                          'normalize_global': True}
+        decoder_kwargs = {'crop_ratio': None,
+                          'channel_base': 32768,
+                          'channel_max': 512,
+                          'architecture': 'resnet',
+                          'resample_kernel': [1, 3, 3, 1],
+                          'local_noise': True,
+                          'act': 'lrelu',
+                          'ltnt_stem': False,
+                          'style': True,
+                          'transformer': True,
+                          'start_res': 0,
+                          'end_res': 8,
+                          'num_heads': 1,
+                          'attention_dropout': 0.12,
+                          'ltnt_gate': False,
+                          'img_gate': False,
+                          'integration': 'mul',
+                          'norm': 'layer',
+                          'kmeans': False,
+                          'kmeans_iters': 1,
+                          'iterative': False,
+                          'use_pos': True,
+                          'pos_dim': None,
+                          'pos_type': 'sinus',
+                          'pos_init': 'uniform',
+                          'pos_directions_num': 2}
+        _kwargs = {'nothing': None}
+
+        self.bipartite_decoder = BipartiteDecoder_catlabel_skipSPD_3Dnoise_simplex_layernorm(
+            z_dim=32,  # Input latent (Z) dimensionality
+            c_dim=0,  # Conditioning label (C) dimensionality
+            w_dim=32,  # Intermediate latent (W) dimensionality
+            k=17,  # Number of latent vector components z_1,...,z_k
+            img_resolution=256,  # Output resolution
+            img_channels=3,  # Number of output color channels
+            component_dropout=0.0,  # Dropout over the latent components, 0 = disable
+            mapping_kwargs=mapping_kwargs,
+            decoder_kwargs=decoder_kwargs,  # Arguments for SynthesisNetwork
+            **_kwargs  # Ignore unrecognized keyword args
+        )
+
+
+
+        self.lff_16 = CIPblocks.LFF(256)
+        self.lff_32 = CIPblocks.LFF(128)
+        self.lff_64 = CIPblocks.LFF(64)
+        self.lff_128 = CIPblocks.LFF(32)
+        self.lff_256 = CIPblocks.LFF(16)
+
+        self.lff_encoder = CIPblocks.LFF(16)
+
+        self.connector_lff_16 = CIPblocks.LFF(256)
+        self.connector_lff_32 = CIPblocks.LFF(128)
+        self.connector_lff_64 = CIPblocks.LFF(64)
+        self.connector_lff_128 = CIPblocks.LFF(32)
+        self.connector_lff_256 = CIPblocks.LFF(16)
+
+        self.coords16 = tt.convert_to_coord_format(1, 16, 32, integer_values=False,device=self.device)
+        self.coords32 = tt.convert_to_coord_format(1, 32, 64, integer_values=False,device=self.device)
+        self.coords64 = tt.convert_to_coord_format(1, 64, 128, integer_values=False,device=self.device)
+        self.coords128 = tt.convert_to_coord_format(1, 128, 256, integer_values=False,device=self.device)
+        self.coords256 = tt.convert_to_coord_format(1, 256, 512, integer_values=False,device=self.device)
+
+        self.style_dim = style_dim
+
+
+
+    def forward(self,
+                label,##[1,35,256,512]
+                label_class_dict,
+                coords,##[1,2,256,512]
+                latent,##1D list[Tensor(1,512)]
+                return_latents=False,
+                truncation=1,
+                truncation_latent=None,
+                input_is_latent=False,
+                edges=None,
+                dict = None
+                ):
+        batch_size,_,H,W = label.shape
+
+
+        label_class_dict,dist_map = label_class_dict[:,0,:,:],label_class_dict[:,1:,:,:]
+
+        label_16 = F.interpolate(label, (16, 32), mode='nearest')
+        label_32 = F.interpolate(label, (32, 64), mode='nearest')
+        label_64 = F.interpolate(label, (64, 128), mode='nearest')
+        label_128 = F.interpolate(label, (128, 256), mode='nearest')
+        labels = [label_16,label_32,label_64,label_128,label]
+        latent = [None,labels]
+
+        dist_map16 = dict['dist_16_to_128'][16]
+        dist_map32 = dict['dist_16_to_128'][32]
+        dist_map64 = dict['dist_16_to_128'][64]
+        dist_map128 = dict['dist_16_to_128'][128]
+        dist_map256 = dist_map
+
+        ff_coords_16 = self.lff_16(self.coords16).expand(batch_size,-1,-1,-1)
+        ff_coords_32 = self.lff_32(self.coords32).expand(batch_size,-1,-1,-1)
+        ff_coords_64 = self.lff_64(self.coords64).expand(batch_size,-1,-1,-1)
+        ff_coords_128 = self.lff_128(self.coords128).expand(batch_size,-1,-1,-1)
+        ff_coords_256 = self.lff_256(self.coords256).expand(batch_size,-1,-1,-1)
+
+
+        ff_dist16 = self.lff_16(dist_map16)
+        ff_dist32 = self.lff_32(dist_map32)
+        ff_dist64 = self.lff_64(dist_map64)
+        ff_dist128 = self.lff_128(dist_map128)
+        ff_dist256 = self.lff_256(dist_map256)
+
+        connector_16 = torch.cat(
+            (self.connector_lff_16(self.coords16).expand(batch_size,-1,-1,-1),self.connector_lff_16(dist_map16)),
+            dim=1)
+        connector_32 = torch.cat(
+            (self.connector_lff_32(self.coords32).expand(batch_size,-1,-1,-1),self.connector_lff_32(dist_map32)),
+            dim=1)
+        connector_64 = torch.cat(
+            (self.connector_lff_64(self.coords64).expand(batch_size,-1,-1,-1),self.connector_lff_64(dist_map64)),
+            dim=1)
+        connector_128 = torch.cat(
+            (self.connector_lff_128(self.coords128).expand(batch_size,-1,-1,-1),self.connector_lff_128(dist_map128)),
+            dim=1)
+        connector_256 = torch.cat(
+            (self.connector_lff_256(self.coords256).expand(batch_size,-1,-1,-1),self.connector_lff_256(dist_map256)),
+            dim=1)
+
+
+        ff16 = torch.cat([ff_coords_16, ff_dist16 ], 1)
+        ff32 = torch.cat([ff_coords_32, ff_dist32 ], 1)
+        ff64 = torch.cat([ff_coords_64, ff_dist64 ], 1)
+        ff128 = torch.cat([ff_coords_128, ff_dist128 ], 1)
+        ff256 = torch.cat([ff_coords_256, ff_dist256 ], 1)
+        ffs = [ff16,ff32,ff64,ff128,ff256]
+        emb = {
+            'res16':  [ff16, connector_16],
+            'res32':  [ff32, connector_32],
+            'res64':  [ff64, connector_64],
+            'res128': [ff128, connector_128],
+            'res256': [ff256, connector_256]
+        }
+
+
+        encoder_input = torch.cat([label+torch.normal(0.0,0.1*torch.ones(label.shape)).to(self.device),
+                                   self.lff_encoder(self.coords256).expand(batch_size,-1,-1,-1),
+                                   self.lff_encoder(dist_map256)],
+                                   dim = 1)
+        _, encoder_outputs = self.encoder(encoder_input)
+
+        z = torch.randn([batch_size, *self.bipartite_decoder.input_shape[1:]], device=self.device)
+
+        output_from_decoder,rgb = self.bipartite_decoder(encoder_outputs,emb,label,z, truncation_psi = 0.7 )
+
+
+        if return_latents:
+            return rgb, latent
+        else:
+            return self.tanh(rgb), None
+
+
+
+
+
+
+class ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_noisylb_simplex_SE(nn.Module):##413228
+    def __init__(self, opt=None, **kwargs):
+        super(ImplicitGenerator_bipDEC_catlabel_skipSPD_3Dnoise_noisylb_simplex_SE, self).__init__()
+        self.opt = opt
+        self.device = 'cpu' if opt.gpu_ids == '-1' else 'cuda'
+        n_mlp = opt.n_mlp
+        style_dim = opt.style_dim
+        lr_mlp = opt.lr_mlp
+        activation = opt.activation
+        hidden_size = opt.hidden_size
+        channel_multiplier = opt.channel_multiplier
+        demodulate = False
+        decoder_param = {}
+        decoder_param['style_dim'] = style_dim
+        decoder_param['demodulate'] = demodulate
+        decoder_param['approach'] = 'SPADE_like'
+        decoder_param['activation'] = activation
+        decoder_param['add_dist'] = opt.add_dist
+
+        # if opt.apply_MOD_CLADE:
+        #     self.approach = 0
+        # elif opt.only_CLADE:
+        #     self.approach = 1.2
+        # elif opt.Matrix_Computation:
+        #     self.approach = 2
+        # else:
+        #     self.approach = -1
+
+        self.add_dist = opt.add_dist
+        self.tanh = nn.Tanh()
+
+        self.final_channel = opt.final_channel
+        self.input_size = opt.input_size
+
+
+        in_channel_en = 67
+        encoder_resolutions = [256, 128, 64, 32, 16]
+        encoder_channels = [32, 64, 128, 256, 512]##若加逗号，输入函数后会变成turple！！！
+
+        self.encoder = CIPblocks.Conv_encoder_avepool_for_bipartite_decoder(block_resolutions=encoder_resolutions,
+                                              channels_nums=encoder_channels,
+                                              in_channel=in_channel_en)
+
+        mapping_kwargs = {'num_layers': 8,
+                          'layer_dim': None,
+                          'act': 'lrelu',
+                          'lrmul': 0.01,
+                          'w_avg_beta': 0.995,
+                          'resnet': True,
+                          'ltnt2ltnt': True,
+                          'transformer': True,
+                          'num_heads': 1,
+                          'attention_dropout': 0.12,
+                          'ltnt_gate': False,
+                          'use_pos': True,
+                          'normalize_global': True}
+        decoder_kwargs = {'crop_ratio': None,
+                          'channel_base': 32768,
+                          'channel_max': 512,
+                          'architecture': 'resnet',
+                          'resample_kernel': [1, 3, 3, 1],
+                          'local_noise': True,
+                          'act': 'lrelu',
+                          'ltnt_stem': False,
+                          'style': True,
+                          'transformer': True,
+                          'start_res': 0,
+                          'end_res': 8,
+                          'num_heads': 1,
+                          'attention_dropout': 0.12,
+                          'ltnt_gate': False,
+                          'img_gate': False,
+                          'integration': 'mul',
+                          'norm': 'layer',
+                          'kmeans': False,
+                          'kmeans_iters': 1,
+                          'iterative': False,
+                          'use_pos': True,
+                          'pos_dim': None,
+                          'pos_type': 'sinus',
+                          'pos_init': 'uniform',
+                          'pos_directions_num': 2}
+        _kwargs = {'nothing': None}
+
+        self.bipartite_decoder = BipartiteDecoder_catlabel_skipSPD_3Dnoise_simplex_SE(
+            z_dim=32,  # Input latent (Z) dimensionality
+            c_dim=0,  # Conditioning label (C) dimensionality
+            w_dim=32,  # Intermediate latent (W) dimensionality
+            k=17,  # Number of latent vector components z_1,...,z_k
+            img_resolution=256,  # Output resolution
+            img_channels=3,  # Number of output color channels
+            component_dropout=0.0,  # Dropout over the latent components, 0 = disable
+            mapping_kwargs=mapping_kwargs,
+            decoder_kwargs=decoder_kwargs,  # Arguments for SynthesisNetwork
+            **_kwargs  # Ignore unrecognized keyword args
+        )
+
+
+
+        self.lff_16 = CIPblocks.LFF(256)
+        self.lff_32 = CIPblocks.LFF(128)
+        self.lff_64 = CIPblocks.LFF(64)
+        self.lff_128 = CIPblocks.LFF(32)
+        self.lff_256 = CIPblocks.LFF(16)
+
+        self.lff_encoder = CIPblocks.LFF(16)
+
+        self.connector_lff_16 = CIPblocks.LFF(256)
+        self.connector_lff_32 = CIPblocks.LFF(128)
+        self.connector_lff_64 = CIPblocks.LFF(64)
+        self.connector_lff_128 = CIPblocks.LFF(32)
+        self.connector_lff_256 = CIPblocks.LFF(16)
+
+        self.coords16 = tt.convert_to_coord_format(1, 16, 32, integer_values=False,device=self.device)
+        self.coords32 = tt.convert_to_coord_format(1, 32, 64, integer_values=False,device=self.device)
+        self.coords64 = tt.convert_to_coord_format(1, 64, 128, integer_values=False,device=self.device)
+        self.coords128 = tt.convert_to_coord_format(1, 128, 256, integer_values=False,device=self.device)
+        self.coords256 = tt.convert_to_coord_format(1, 256, 512, integer_values=False,device=self.device)
+
+        self.style_dim = style_dim
+
+
+
+    def forward(self,
+                label,##[1,35,256,512]
+                label_class_dict,
+                coords,##[1,2,256,512]
+                latent,##1D list[Tensor(1,512)]
+                return_latents=False,
+                truncation=1,
+                truncation_latent=None,
+                input_is_latent=False,
+                edges=None,
+                dict = None
+                ):
+        batch_size,_,H,W = label.shape
+
+
+        label_class_dict,dist_map = label_class_dict[:,0,:,:],label_class_dict[:,1:,:,:]
+
+        label_16 = F.interpolate(label, (16, 32), mode='nearest')
+        label_32 = F.interpolate(label, (32, 64), mode='nearest')
+        label_64 = F.interpolate(label, (64, 128), mode='nearest')
+        label_128 = F.interpolate(label, (128, 256), mode='nearest')
+        labels = [label_16,label_32,label_64,label_128,label]
+        latent = [None,labels]
+
+        dist_map16 = dict['dist_16_to_128'][16]
+        dist_map32 = dict['dist_16_to_128'][32]
+        dist_map64 = dict['dist_16_to_128'][64]
+        dist_map128 = dict['dist_16_to_128'][128]
+        dist_map256 = dist_map
+
+        ff_coords_16 = self.lff_16(self.coords16).expand(batch_size,-1,-1,-1)
+        ff_coords_32 = self.lff_32(self.coords32).expand(batch_size,-1,-1,-1)
+        ff_coords_64 = self.lff_64(self.coords64).expand(batch_size,-1,-1,-1)
+        ff_coords_128 = self.lff_128(self.coords128).expand(batch_size,-1,-1,-1)
+        ff_coords_256 = self.lff_256(self.coords256).expand(batch_size,-1,-1,-1)
+
+
+        ff_dist16 = self.lff_16(dist_map16)
+        ff_dist32 = self.lff_32(dist_map32)
+        ff_dist64 = self.lff_64(dist_map64)
+        ff_dist128 = self.lff_128(dist_map128)
+        ff_dist256 = self.lff_256(dist_map256)
+
+        connector_16 = torch.cat(
+            (self.connector_lff_16(self.coords16).expand(batch_size,-1,-1,-1),self.connector_lff_16(dist_map16)),
+            dim=1)
+        connector_32 = torch.cat(
+            (self.connector_lff_32(self.coords32).expand(batch_size,-1,-1,-1),self.connector_lff_32(dist_map32)),
+            dim=1)
+        connector_64 = torch.cat(
+            (self.connector_lff_64(self.coords64).expand(batch_size,-1,-1,-1),self.connector_lff_64(dist_map64)),
+            dim=1)
+        connector_128 = torch.cat(
+            (self.connector_lff_128(self.coords128).expand(batch_size,-1,-1,-1),self.connector_lff_128(dist_map128)),
+            dim=1)
+        connector_256 = torch.cat(
+            (self.connector_lff_256(self.coords256).expand(batch_size,-1,-1,-1),self.connector_lff_256(dist_map256)),
+            dim=1)
+
+
+        ff16 = torch.cat([ff_coords_16, ff_dist16 ], 1)
+        ff32 = torch.cat([ff_coords_32, ff_dist32 ], 1)
+        ff64 = torch.cat([ff_coords_64, ff_dist64 ], 1)
+        ff128 = torch.cat([ff_coords_128, ff_dist128 ], 1)
+        ff256 = torch.cat([ff_coords_256, ff_dist256 ], 1)
+        ffs = [ff16,ff32,ff64,ff128,ff256]
+        emb = {
+            'res16':  [ff16, connector_16],
+            'res32':  [ff32, connector_32],
+            'res64':  [ff64, connector_64],
+            'res128': [ff128, connector_128],
+            'res256': [ff256, connector_256]
+        }
+
+
+        encoder_input = torch.cat([label+torch.normal(0.0,0.1*torch.ones(label.shape)).to(self.device),
+                                   self.lff_encoder(self.coords256).expand(batch_size,-1,-1,-1),
+                                   self.lff_encoder(dist_map256)],
+                                   dim = 1)
+        _, encoder_outputs = self.encoder(encoder_input)
+
+        z = torch.randn([batch_size, *self.bipartite_decoder.input_shape[1:]], device=self.device)
+
+        output_from_decoder,rgb = self.bipartite_decoder(encoder_outputs,emb,label,z, truncation_psi = 0.7 )
+
+
+        if return_latents:
+            return rgb, latent
+        else:
+            return self.tanh(rgb), None
+
 
 
 
@@ -9812,48 +11335,30 @@ class ImplicitGenerator_multi_scale_U_only_decod_dist(nn.Module):##32
 
 
 
-class OASIS_Generator(nn.Module):
-    def __init__(self, opt):
-        super().__init__()
-        self.opt = opt
-        sp_norm = norms.get_spectral_norm(opt)
-        ch = opt.channels_G
-        self.channels = [16*ch, 16*ch, 16*ch, 8*ch, 4*ch, 2*ch, 1*ch]
-        self.init_W, self.init_H = self.compute_latent_vector_size(opt)
-        self.conv_img = nn.Conv2d(self.channels[-1], 3, 3, padding=1)
-        self.up = nn.Upsample(scale_factor=2)
-        self.body = nn.ModuleList([])
-        for i in range(len(self.channels)-1):
-            self.body.append(ResnetBlock_with_SPADE(self.channels[i], self.channels[i+1], opt))
-        if not self.opt.no_3dnoise:
-            self.fc = nn.Conv2d(self.opt.semantic_nc + self.opt.z_dim, 16 * ch, 3, padding=1)
-        else:
-            self.fc = nn.Conv2d(self.opt.semantic_nc, 16 * ch, 3, padding=1)
 
-    def compute_latent_vector_size(self, opt):
-        w = opt.crop_size // (2**(opt.num_res_blocks-1))
-        h = round(w / opt.aspect_ratio)
-        return h, w
 
-    def forward(self, input, z=None):
-        seg = input
-        if self.opt.gpu_ids != "-1":
-            seg.cuda()
-        if not self.opt.no_3dnoise:
-            dev = seg.get_device() if self.opt.gpu_ids != "-1" else "cpu"
-            z = torch.randn(seg.size(0), self.opt.z_dim, dtype=torch.float32, device=dev)
-            z = z.view(z.size(0), self.opt.z_dim, 1, 1)
-            z = z.expand(z.size(0), self.opt.z_dim, seg.size(2), seg.size(3))
-            seg = torch.cat((z, seg), dim = 1)
-        x = F.interpolate(seg, size=(self.init_W, self.init_H))
-        x = self.fc(x)
-        for i in range(self.opt.num_res_blocks):
-            x = self.body[i](x, seg)
-            if i < self.opt.num_res_blocks-1:
-                x = self.up(x)
-        x = self.conv_img(F.leaky_relu(x, 2e-1))
-        x = F.tanh(x)
-        return x
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 class ResnetBlock_with_SPADE(nn.Module):
@@ -9861,77 +11366,44 @@ class ResnetBlock_with_SPADE(nn.Module):
         super().__init__()
         self.opt = opt
         self.learned_shortcut = (fin != fout)
+        self.add_edges = 1 if opt.add_edges else 0
         fmiddle = min(fin, fout)
         sp_norm = norms.get_spectral_norm(opt)
-        self.conv_0 = sp_norm(nn.Conv2d(fin, fmiddle, kernel_size=3, padding=1))
-        self.conv_1 = sp_norm(nn.Conv2d(fmiddle, fout, kernel_size=3, padding=1))
+        self.conv_0 = sp_norm(nn.Conv2d(fin+self.add_edges, fmiddle, kernel_size=3, padding=1))
+        self.conv_1 = sp_norm(nn.Conv2d(fmiddle+self.add_edges, fout, kernel_size=3, padding=1))
         if self.learned_shortcut:
-            self.conv_s = sp_norm(nn.Conv2d(fin, fout, kernel_size=1, bias=False))
+            self.conv_s = sp_norm(nn.Conv2d(fin+self.add_edges, fout, kernel_size=1, bias=False))
 
         spade_conditional_input_dims = opt.semantic_nc
         if not opt.no_3dnoise:
             spade_conditional_input_dims += opt.z_dim
 
-        self.norm_0 = norms.SPADE(opt, fin, spade_conditional_input_dims)
-        self.norm_1 = norms.SPADE(opt, fmiddle, spade_conditional_input_dims)
+        self.norm_0 = norms.SPADE(opt, fin+self.add_edges, spade_conditional_input_dims)
+        self.norm_1 = norms.SPADE(opt, fmiddle+self.add_edges, spade_conditional_input_dims)
         if self.learned_shortcut:
-            self.norm_s = norms.SPADE(opt, fin, spade_conditional_input_dims)
+            self.norm_s = norms.SPADE(opt, fin+self.add_edges, spade_conditional_input_dims)
         self.activ = nn.LeakyReLU(0.2, inplace=True)
 
-    def forward(self, x, seg):
+    def forward(self, x, seg, edges = None):
+
+
         if self.learned_shortcut:
+            if self.add_edges:
+                edges = F.interpolate(edges, size=x.shape[-2:])
+                x = torch.cat([x, edges], dim=1)
             x_s = self.conv_s(self.norm_s(x, seg))
         else:
             x_s = x
+            if self.add_edges:
+                edges = F.interpolate(edges, size=x.shape[-2:])
+                x = torch.cat([x, edges], dim=1)
+
         dx = self.conv_0(self.activ(self.norm_0(x, seg)))
+        if self.add_edges :
+            dx = torch.cat([dx,edges],dim = 1)
         dx = self.conv_1(self.activ(self.norm_1(dx, seg)))
         out = x_s + dx
         return out
-
-
-# class ResnetBlock_with_SPADE(nn.Module):
-#     def __init__(self, fin, fout, opt):
-#         super().__init__()
-#         self.opt = opt
-#         self.learned_shortcut = (fin != fout)
-#         self.add_edges = 1 if opt.add_edges else 0
-#         fmiddle = min(fin, fout)
-#         sp_norm = norms.get_spectral_norm(opt)
-#         self.conv_0 = sp_norm(nn.Conv2d(fin+self.add_edges, fmiddle, kernel_size=3, padding=1))
-#         self.conv_1 = sp_norm(nn.Conv2d(fmiddle+self.add_edges, fout, kernel_size=3, padding=1))
-#         if self.learned_shortcut:
-#             self.conv_s = sp_norm(nn.Conv2d(fin+self.add_edges, fout, kernel_size=1, bias=False))
-#
-#         spade_conditional_input_dims = opt.semantic_nc
-#         if not opt.no_3dnoise:
-#             spade_conditional_input_dims += opt.z_dim
-#
-#         self.norm_0 = norms.SPADE(opt, fin+self.add_edges, spade_conditional_input_dims)
-#         self.norm_1 = norms.SPADE(opt, fmiddle+self.add_edges, spade_conditional_input_dims)
-#         if self.learned_shortcut:
-#             self.norm_s = norms.SPADE(opt, fin+self.add_edges, spade_conditional_input_dims)
-#         self.activ = nn.LeakyReLU(0.2, inplace=True)
-#
-#     def forward(self, x, seg, edges = None):
-#
-#
-#         if self.learned_shortcut:
-#             if self.add_edges:
-#                 edges = F.interpolate(edges, size=x.shape[-2:])
-#                 x = torch.cat([x, edges], dim=1)
-#             x_s = self.conv_s(self.norm_s(x, seg))
-#         else:
-#             x_s = x
-#             if self.add_edges:
-#                 edges = F.interpolate(edges, size=x.shape[-2:])
-#                 x = torch.cat([x, edges], dim=1)
-#
-#         dx = self.conv_0(self.activ(self.norm_0(x, seg)))
-#         if self.add_edges :
-#             dx = torch.cat([dx,edges],dim = 1)
-#         dx = self.conv_1(self.activ(self.norm_1(dx, seg)))
-#         out = x_s + dx
-#         return out
 
 class ResnetBlock_with_IWT_SPADE_HWT(nn.Module):
     def __init__(self, fin, fout, opt):

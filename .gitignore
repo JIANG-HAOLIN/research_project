@@ -26,6 +26,7 @@ pretrained_models/
 !oasisG_epe.sh
 **/*.jpeg
 **/*.png
+!media/**
 __MACOSX/
 *.npy
 test.py

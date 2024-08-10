@@ -3,6 +3,10 @@
 plot.py
 sample_noise_vector.py
 
+research_project/research_project/iss-thesis-final/**
+research_project/iss-thesis-final/**
+iss-thesis-final/**
+
 checkpoints/
 tensorboard_logs/
 results/
